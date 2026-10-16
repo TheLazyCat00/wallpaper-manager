@@ -220,7 +220,7 @@ class Controller : AutoCloseable {
         markScheduleCurrent()
         "Rule updated"
     }
-    fun setScheduleEnabled(enabled: Boolean) = perform {
+    fun enableSchedule(enabled: Boolean) = perform {
         store.setSetting("schedule_enabled", enabled.toString())
         markScheduleCurrent()
         null

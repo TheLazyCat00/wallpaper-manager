@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
+  "packages": ["jdk21@latest", "gradle@latest"],
+  "shell": {
+    "scripts": {
+      "test": "gradle test",
+      "run": "gradle run",
+      "package-deb": "gradle packageDeb",
+      "package-dmg": "gradle packageDmg"
+    }
+  }
+}

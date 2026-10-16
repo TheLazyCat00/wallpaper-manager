@@ -2,7 +2,6 @@ package wallpaper
 
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 
 enum class MediaKind { IMAGE, VIDEO }
 enum class OrderMode { SEQUENTIAL, RANDOM }
@@ -31,18 +30,26 @@ data class DailyRule(
 )
 object AppFolders {
     val home: Path by lazy {
-        val custom = System.getenv("WPM_KOTLIN_DATA_DIR")?.takeIf { it.isNotBlank() }
-        val os = System.getProperty("os.name").lowercase()
-        val path = when {
-            custom != null -> Paths.get(custom)
-            os.contains("win") -> Paths.get(System.getenv("LOCALAPPDATA")
-                ?: System.getProperty("user.home"), "WallpaperManagerKotlin")
-            os.contains("mac") -> Paths.get(System.getProperty("user.home"), "Library",
-                "Application Support", "WallpaperManagerKotlin")
-            else -> Paths.get(System.getenv("XDG_DATA_HOME")
-                ?: Paths.get(System.getProperty("user.home"), ".local", "share").toString(),
-                "wallpaper-manager-kotlin")
+        Files.createDirectories(resolveHome(
+            System.getProperty("os.name"), System.getenv(), Path.of(System.getProperty("user.home"))
+        ))
+    }
+
+    internal fun resolveHome(osName: String, environment: Map<String, String>, userHome: Path): Path {
+        val custom = environment["WPM_KOTLIN_DATA_DIR"]?.takeIf { it.isNotBlank() }
+        val os = osName.lowercase()
+        return when {
+            custom != null -> Path.of(custom)
+            os.contains("win") -> (environment["LOCALAPPDATA"]?.takeIf { it.isNotBlank() }
+                ?.let(Path::of) ?: userHome).resolve("WallpaperManagerKotlin")
+            os.contains("mac") -> userHome.resolve("Library/Application Support/WallpaperManagerKotlin")
+            else -> {
+                // XDG locations must be non-empty absolute paths.
+                val dataHome = environment["XDG_DATA_HOME"]?.takeIf { it.isNotBlank() }
+                    ?.let(Path::of)?.takeIf { it.isAbsolute }
+                    ?: userHome.resolve(".local/share")
+                dataHome.resolve("wallpaper-manager-kotlin")
+            }
         }
-        Files.createDirectories(path)
     }
 }

@@ -25,6 +25,21 @@ class StoreTest {
         }
     }
 
+    @Test fun deletingPlaylistCascadesOnlyRulesTargetingThatPlaylist() {
+        Store(directory.resolve("playlist-rules.db")).use { store ->
+            store.createPlaylist("Delete", OrderMode.SEQUENTIAL, 60)
+            store.createPlaylist("Keep", OrderMode.RANDOM, 120)
+            val doomed = store.listPlaylists().first { it.name == "Delete" }
+            val keeper = store.listPlaylists().first { it.name == "Keep" }
+            store.addRule("07:00", null, doomed.id)
+            store.addRule("09:00", null, doomed.id)
+            store.addRule("13:00", null, keeper.id)
+            assertEquals(2, store.listRules().count { it.playlistId == doomed.id })
+            store.deletePlaylist(doomed.id)
+            assertEquals(listOf(keeper.id), store.listRules().mapNotNull { it.playlistId })
+        }
+    }
+
     @Test fun savesLibraryFavoritesPlaylistsAndRules() {
         val image = directory.resolve("picture.png")
         Files.write(image, byteArrayOf(1, 2, 3))

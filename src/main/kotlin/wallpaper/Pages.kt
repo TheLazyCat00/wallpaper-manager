@@ -23,12 +23,6 @@ internal fun PlaylistsPage(
     var addMediaId by remember { mutableStateOf<Long?>(null) }
     val chosen = selected ?: vm.playlists.firstOrNull()
     val candidates = vm.media.filter { it.kind == MediaKind.IMAGE }
-    val included = remember(vm.playlists, chosen?.id, vm.media) {
-        // UI currently resolves the list from store on demand through a controller callback.
-        // See PlaylistMembers composable below.
-        chosen != null
-    }
-
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, onValueChange = { name = it },
@@ -106,7 +100,6 @@ internal fun PlaylistsPage(
 
 @Composable
 private fun PlaylistMembers(vm: Controller, playlistId: Long) {
-    // A lightweight membership view can be derived after each store update by the controller.
     val items = vm.members[playlistId].orEmpty()
     if (items.isEmpty()) {
         Text("Empty playlist. Add an image above or from the Library.")

@@ -27,6 +27,8 @@ class Controller : AutoCloseable {
         private set
     var rules by mutableStateOf<List<DailyRule>>(emptyList())
         private set
+    var members by mutableStateOf<Map<Long, List<Media>>>(emptyMap())
+        private set
     var notice by mutableStateOf("Import images or folders to get started.")
         private set
     var currentPath by mutableStateOf("")
@@ -57,6 +59,7 @@ class Controller : AutoCloseable {
     private fun refresh() {
         media = store.listMedia()
         playlists = store.listPlaylists()
+        members = playlists.associate { it.id to store.playlistItems(it.id) }
         rules = store.listRules()
         currentPath = store.setting("current_path")
         runningPlaylist = store.setting("active_playlist").toLongOrNull()

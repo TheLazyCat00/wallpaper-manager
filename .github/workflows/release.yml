@@ -69,7 +69,7 @@ jobs:
             task: packageDeb
             devbox: true
           - os: macos-15
-            platform: macos-x64
+            platform: macos-arm64
             extension: dmg
             task: packageDmg
             devbox: true
@@ -109,6 +109,14 @@ jobs:
           $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
           gradle test packageMsi --no-daemon
           if ($LASTEXITCODE -ne 0) { throw "Gradle build failed" }
+
+      - name: Show packaging diagnostics
+        if: failure() && matrix.devbox
+        shell: bash
+        run: |
+          if [ -d build/compose/logs ]; then
+            find build/compose/logs -type f -print -exec cat {} \;
+          fi
 
       - name: Stage Unix installer
         if: matrix.devbox
@@ -163,7 +171,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for asset in "WallpaperManager-$TAG-linux-x64.deb" "WallpaperManager-$TAG-macos-x64.dmg" "WallpaperManager-$TAG-windows-x64.msi"; do
+          for asset in "WallpaperManager-$TAG-linux-x64.deb" "WallpaperManager-$TAG-macos-arm64.dmg" "WallpaperManager-$TAG-windows-x64.msi"; do
             test -s "release/$asset" || { echo "::error::Missing $asset"; exit 1; }
           done
           (cd release && sha256sum ./*.deb ./*.dmg ./*.msi > SHA256SUMS.txt)

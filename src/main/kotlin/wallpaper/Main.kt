@@ -1,6 +1,5 @@
 package wallpaper
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,17 +48,16 @@ fun main() = application {
     }
 }
 
-@Preview
-@Composable
-private fun PagePreview() {
-    MaterialTheme { Text("Wallpaper Manager") }
-}
-
 @Composable
 private fun WallpaperApp(vm: Controller) {
     var page by remember { mutableStateOf(Page.HOME) }
     var selectedPlaylistId by remember { mutableStateOf<Long?>(null) }
     val activePlaylist = vm.playlists.firstOrNull { it.id == selectedPlaylistId }
+    LaunchedEffect(vm.playlists) {
+        if (selectedPlaylistId == null && vm.playlists.isNotEmpty()) {
+            selectedPlaylistId = vm.playlists.first().id
+        }
+    }
     Surface {
         Row(Modifier.fillMaxSize()) {
             Column(

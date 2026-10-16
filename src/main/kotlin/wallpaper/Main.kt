@@ -54,7 +54,7 @@ fun main(args: Array<String>) = application {
     Window(
         visible = visible.value,
         onCloseRequest = {
-            if (controller.closeToTray && tray.installed) {
+            if (controller.state.closeToTray && tray.installed) {
                 visible.value = false
                 tray.announceHidden()
             } else {
@@ -66,7 +66,7 @@ fun main(args: Array<String>) = application {
         title = "Wallpaper Manager",
         state = rememberWindowState(width = 1240.dp, height = 820.dp)
     ) {
-        MaterialTheme(colorScheme = if (controller.dark) darkColorScheme() else lightColorScheme()) {
+        MaterialTheme(colorScheme = if (controller.state.dark) darkColorScheme() else lightColorScheme()) {
             WallpaperApp(controller)
         }
     }
@@ -74,12 +74,13 @@ fun main(args: Array<String>) = application {
 
 @Composable
 private fun WallpaperApp(vm: Controller) {
+    val state = vm.state
     var page by remember { mutableStateOf(Page.HOME) }
     var selectedPlaylistId by remember { mutableStateOf<Long?>(null) }
-    val activePlaylist = vm.playlists.firstOrNull { it.id == selectedPlaylistId }
-    LaunchedEffect(vm.playlists) {
-        if (selectedPlaylistId == null && vm.playlists.isNotEmpty()) {
-            selectedPlaylistId = vm.playlists.first().id
+    val activePlaylist = state.playlists.firstOrNull { it.id == selectedPlaylistId }
+    LaunchedEffect(state.playlists) {
+        if (selectedPlaylistId == null && state.playlists.isNotEmpty()) {
+            selectedPlaylistId = state.playlists.first().id
         }
     }
     Surface {
@@ -139,7 +140,7 @@ private fun WallpaperApp(vm: Controller) {
                     tonalElevation = 2.dp, shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(vm.notice, Modifier.padding(12.dp), maxLines = 2,
+                    Text(state.notice, Modifier.padding(12.dp), maxLines = 2,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -179,21 +180,22 @@ private fun Panel(
 
 @Composable
 private fun HomePage(vm: Controller, toLibrary: () -> Unit) {
-    val current = vm.media.firstOrNull { it.path.toString() == vm.currentPath }
+    val state = vm.state
+    val current = state.currentMedia
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Panel("Library", Modifier.weight(1f)) {
-                Text(vm.media.size.toString() + " imported files")
-                Text(vm.media.count { it.favorite }.toString() + " favorites")
+                Text(state.media.size.toString() + " imported files")
+                Text(state.media.count { it.favorite }.toString() + " favorites")
             }
             Panel("Playlists", Modifier.weight(1f)) {
-                Text(vm.playlists.size.toString() + " playlists")
-                Text(if (vm.runningPlaylist == null) "None running" else "Playlist running")
+                Text(state.playlists.size.toString() + " playlists")
+                Text(if (state.runningPlaylist == null) "None running" else "Playlist running")
             }
             Panel("Schedule", Modifier.weight(1f)) {
-                Text(vm.rules.count { it.enabled }.toString() + " active rules")
-                Text(if (vm.scheduleEnabled) "Enabled" else "Disabled")
+                Text(state.rules.count { it.enabled }.toString() + " active rules")
+                Text(if (state.scheduleEnabled) "Enabled" else "Disabled")
             }
         }
         Panel("Current desktop wallpaper", Modifier.fillMaxWidth()) {
@@ -215,7 +217,7 @@ private fun HomePage(vm: Controller, toLibrary: () -> Unit) {
             }
         }
         Panel("Recently imported", Modifier.fillMaxWidth()) {
-            vm.media.take(5).forEach { item ->
+            state.media.take(5).forEach { item ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(item.name, Modifier.weight(1f), maxLines = 1)
                     Text(item.kind.name.lowercase(), style = MaterialTheme.typography.bodySmall)
@@ -228,7 +230,8 @@ private fun HomePage(vm: Controller, toLibrary: () -> Unit) {
 
 @Composable
 private fun DesktopPage(vm: Controller) {
-    val current = vm.media.firstOrNull { it.path.toString() == vm.currentPath }
+    val state = vm.state
+    val current = state.currentMedia
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Panel("Desktop wallpaper") {
@@ -240,7 +243,7 @@ private fun DesktopPage(vm: Controller) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = vm::next) { Text("Next image") }
                 OutlinedButton(onClick = vm::random) { Text("Random image") }
-                OutlinedButton(onClick = vm::restoreOriginal, enabled = vm.canRestore) {
+                OutlinedButton(onClick = vm::restoreOriginal, enabled = state.canRestore) {
                     Text("Restore original")
                 }
             }
@@ -249,7 +252,7 @@ private fun DesktopPage(vm: Controller) {
             Text("Applies to the next wallpaper you set. Windows supports all five modes.")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WallpaperStyle.entries.forEach { s ->
-                    if (s == vm.style) Button(onClick = { vm.selectStyle(s) }) { Text(s.label) }
+                    if (s == state.style) Button(onClick = { vm.selectStyle(s) }) { Text(s.label) }
                     else OutlinedButton(onClick = { vm.selectStyle(s) }) { Text(s.label) }
                 }
             }
@@ -262,6 +265,7 @@ private fun DesktopPage(vm: Controller) {
 
 @Composable
 private fun LockPage(vm: Controller) {
+    val state = vm.state
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Panel("Lock screen integration") {
             Text("The Python original uses Windows Runtime APIs to change the Windows lock screen, " +
@@ -270,7 +274,7 @@ private fun LockPage(vm: Controller) {
                 "The library, static desktop wallpaper, playlists and daily schedule are functional.")
         }
         Panel("Available images") {
-            Text(vm.media.count { it.kind == MediaKind.IMAGE }.toString() + " images imported")
+            Text(state.media.count { it.kind == MediaKind.IMAGE }.toString() + " images imported")
             Text("Lock screen controls will be enabled once the native backend is implemented.")
         }
     }
@@ -278,10 +282,11 @@ private fun LockPage(vm: Controller) {
 
 @Composable
 private fun LibraryPage(vm: Controller, playlistId: Long?) {
+    val state = vm.state
     var search by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("all") }
     var favorites by remember { mutableStateOf(false) }
-    val files = vm.media.filter { item ->
+    val files = state.media.filter { item ->
         item.name.contains(search, ignoreCase = true) &&
             (!favorites || item.favorite) &&
             (filter == "all" || item.kind.name.equals(filter, ignoreCase = true))
@@ -325,6 +330,8 @@ private fun LibraryPage(vm: Controller, playlistId: Long?) {
 
 @Composable
 private fun MediaTile(item: Media, vm: Controller, playlistId: Long?) {
+    val state = vm.state
+    val present = item.id in state.availableMediaIds
     Surface(tonalElevation = 2.dp, shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Thumbnail(item, Modifier.fillMaxWidth().height(132.dp))
@@ -332,11 +339,11 @@ private fun MediaTile(item: Media, vm: Controller, playlistId: Long?) {
                 fontWeight = FontWeight.Medium)
             Text(
                 (item.width?.let { w -> item.height?.let { h -> w.toString() + " × " + h } } ?: item.kind.name) +
-                    " · " + (item.bytes / 1024) + " KiB" + if (!item.present) " · Missing" else "",
+                    " · " + (item.bytes / 1024) + " KiB" + if (!present) " · Missing" else "",
                 maxLines = 1, style = MaterialTheme.typography.bodySmall
             )
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Button(onClick = { vm.applyMedia(item) }, enabled = item.kind == MediaKind.IMAGE && item.present,
+                Button(onClick = { vm.applyMedia(item) }, enabled = item.kind == MediaKind.IMAGE && present,
                     contentPadding = PaddingValues(horizontal = 10.dp)) { Text("Set") }
                 OutlinedButton(onClick = { vm.toggleFavorite(item) },
                     contentPadding = PaddingValues(horizontal = 10.dp)) {
@@ -344,7 +351,7 @@ private fun MediaTile(item: Media, vm: Controller, playlistId: Long?) {
                 }
                 OutlinedButton(onClick = {
                     runCatching { Desktop.getDesktop().open(item.path.toFile()) }
-                }, enabled = item.present,
+                }, enabled = present,
                     contentPadding = PaddingValues(horizontal = 10.dp)) { Text("Open") }
             }
             if (playlistId != null && item.kind == MediaKind.IMAGE) {
@@ -360,13 +367,14 @@ private fun Thumbnail(item: Media, modifier: Modifier = Modifier) {
     val thumbnail by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = null, item.path, item.kind
     ) {
-        value = if (item.kind == MediaKind.IMAGE && item.present)
+        value = if (item.kind == MediaKind.IMAGE)
             MediaFiles.thumbnail(item.path) else null
     }
     Surface(modifier.clip(RoundedCornerShape(12.dp)),
         color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-        if (thumbnail != null) {
-            Image(bitmap = thumbnail!!, contentDescription = item.name, modifier = Modifier.fillMaxSize(),
+        val bitmap = thumbnail
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = item.name, modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop)
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

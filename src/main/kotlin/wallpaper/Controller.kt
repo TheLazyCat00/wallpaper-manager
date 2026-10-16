@@ -3,11 +3,16 @@ package wallpaper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -15,81 +20,71 @@ import java.nio.file.Path
 import java.time.LocalDateTime
 
 /** Serializes wallpaper changes, scheduled jobs and user actions on an I/O dispatcher. */
-class Controller : AutoCloseable {
-    private val store = Store(AppFolders.home.resolve("library.db"))
+class Controller internal constructor(
+    private val store: Store = Store(AppFolders.home.resolve("library.db")),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+) : AutoCloseable {
     private val desktop = DesktopWallpaper(store)
-    private val playback = PlaylistPlayback(store, apply = { item -> apply(item, stopPlaylist = false) })
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val playback = PlaylistPlayback(store, apply = ::apply)
     private val gate = Mutex()
 
-    var media by mutableStateOf<List<Media>>(emptyList())
+    internal var state by mutableStateOf(AppState())
         private set
-    var playlists by mutableStateOf<List<Playlist>>(emptyList())
-        private set
-    var rules by mutableStateOf<List<DailyRule>>(emptyList())
-        private set
-    var members by mutableStateOf<Map<Long, List<Media>>>(emptyMap())
-        private set
-    var notice by mutableStateOf("Import images or folders to get started.")
-        private set
-    var currentPath by mutableStateOf("")
-        private set
-    var runningPlaylist by mutableStateOf<Long?>(null)
-        private set
-    var dark by mutableStateOf(true)
-        private set
-    var scheduleEnabled by mutableStateOf(true)
-        private set
-    var closeToTray by mutableStateOf(true)
-        private set
-    var style by mutableStateOf(WallpaperStyle.FILL)
-        private set
-    val canRestore get() = desktop.canRestore()
 
     init {
-        refresh()
+        // The owned scope completes only after its children finish unwinding.
+        scope.coroutineContext.job.invokeOnCompletion { store.close() }
         scope.launch {
-            while (true) {
-                gate.withLock {
-                    runCatching { tick() }.onFailure { notice = "Automation: " + (it.message ?: "failed") }
-                    refresh()
-                }
+            execute { null }
+            while (isActive) {
+                execute("Automation: ") { tick(); null }
                 delay(5_000)
             }
         }
     }
 
-    private fun refresh() {
-        media = store.listMedia()
-        playlists = store.listPlaylists()
-        members = playlists.associate { it.id to store.playlistItems(it.id) }
-        rules = store.listRules()
-        currentPath = store.setting("current_path")
-        runningPlaylist = store.setting("active_playlist").toLongOrNull()
-        dark = store.setting("appearance", "dark") == "dark"
-        scheduleEnabled = store.setting("schedule_enabled", "true") == "true"
-        closeToTray = store.setting("close_to_tray", "true") == "true"
-        style = WallpaperStyle.fromSetting(store.setting("style", WallpaperStyle.FILL.name))
+    private fun refresh(notice: String?) {
+        val media = store.listMedia()
+        val settings = store.allSettings()
+        state = AppState(
+            media = media,
+            playlists = store.listPlaylists(),
+            members = store.playlistMembers(),
+            rules = store.listRules(),
+            availableMediaIds = media.filter { it.present }.mapTo(mutableSetOf()) { it.id },
+            currentPath = settings["current_path"].orEmpty(),
+            runningPlaylist = settings["active_playlist"]?.toLongOrNull(),
+            dark = settings.getOrDefault("appearance", "dark") == "dark",
+            scheduleEnabled = settings.getOrDefault("schedule_enabled", "true") == "true",
+            closeToTray = settings.getOrDefault("close_to_tray", "true") == "true",
+            style = WallpaperStyle.fromSetting(settings["style"]),
+            canRestore = desktop.canRestore(),
+            notice = notice ?: state.notice
+        )
     }
 
-    /** Public actions deliberately return immediately; errors are surfaced in the status strip. */
-    fun perform(action: () -> String?) {
-        scope.launch {
-            gate.withLock {
-                try {
-                    val message = action()
-                    if (message != null) notice = message
-                } catch (e: Exception) {
-                    notice = e.message ?: e.javaClass.simpleName
-                } catch (e: LinkageError) {
-                    // Native/JNA linkage errors do not inherit from Exception.
-                    notice = e.message ?: e.javaClass.simpleName
-                } finally {
-                    refresh()
-                }
-            }
+    /** Actions and automation share the same lock, error handling, and state publication. */
+    private suspend fun execute(errorPrefix: String = "", action: () -> String?) = gate.withLock {
+        var notice: String? = null
+        reportFailure(errorPrefix) { notice = action() }
+        currentCoroutineContext().ensureActive()
+        reportFailure(errorPrefix) { refresh(notice) }
+    }
+
+    private inline fun reportFailure(prefix: String, action: () -> Unit) {
+        try {
+            action()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            state = state.copy(notice = prefix + (failure.message ?: failure.javaClass.simpleName))
+        } catch (failure: LinkageError) {
+            state = state.copy(notice = prefix + (failure.message ?: failure.javaClass.simpleName))
         }
     }
+
+    /** Returns a job immediately; blocking I/O stays on the controller's owned scope. */
+    internal fun perform(action: () -> String?) = scope.launch { execute(action = action) }
 
     fun importFiles(paths: List<Path>) = perform {
         val result = MediaFiles.importPaths(store, paths)
@@ -101,8 +96,7 @@ class Controller : AutoCloseable {
         null
     }
     fun removeFromLibrary(item: Media) = perform {
-        val deletedRules = store.listRules().count { it.mediaId == item.id }
-        store.removeMedia(item.id)
+        val deletedRules = store.removeMedia(item.id)
         "Removed from library (source file kept; $deletedRules matching daily rules removed)"
     }
     fun setAppearance(isDark: Boolean) = perform {
@@ -118,21 +112,21 @@ class Controller : AutoCloseable {
         null
     }
 
-    private fun apply(item: Media, stopPlaylist: Boolean) {
+    private fun apply(item: Media) {
         require(item.kind == MediaKind.IMAGE) {
             "Live video wallpaper is not implemented in this Kotlin port yet"
         }
-        if (stopPlaylist) store.setSetting("active_playlist", "")
         val selectedStyle = WallpaperStyle.fromSetting(store.setting("style", WallpaperStyle.FILL.name))
         desktop.set(item.path, selectedStyle)
     }
 
     fun applyMedia(item: Media) = perform {
-        apply(item, stopPlaylist = true)
+        playback.stop()
+        apply(item)
         "Desktop wallpaper: " + item.name
     }
     fun restoreOriginal() = perform {
-        store.setSetting("active_playlist", "")
+        playback.stop()
         desktop.restore()
         "Restored the original Windows desktop wallpaper"
     }
@@ -140,18 +134,21 @@ class Controller : AutoCloseable {
         val candidates = store.listMedia().filter { it.kind == MediaKind.IMAGE && it.present }
         require(candidates.isNotEmpty()) { "Import some images first" }
         val next = candidates.random()
-        apply(next, stopPlaylist = true)
+        playback.stop()
+        apply(next)
         "Random wallpaper: " + next.name
     }
     fun next() = perform {
         if (store.setting("active_playlist").isNotBlank()) {
-            advancePlaylist()
+            playback.advance()
         } else {
             val images = store.listMedia().filter { it.kind == MediaKind.IMAGE && it.present }
             require(images.isNotEmpty()) { "Import some images first" }
-            val index = images.indexOfFirst { it.path.toString() == store.setting("current_path") }
+            val currentPath = store.setting("current_path")
+            val index = images.indexOfFirst { it.path.toString() == currentPath }
             val next = images[(index + 1) % images.size]
-            apply(next, stopPlaylist = true)
+            playback.stop()
+            apply(next)
         }
         "Advanced to next wallpaper"
     }
@@ -170,9 +167,8 @@ class Controller : AutoCloseable {
         "Removed item from playlist"
     }
     fun deletePlaylist(id: Long) = perform {
-        val deletedRules = store.listRules().count { it.playlistId == id }
-        if (store.setting("active_playlist").toLongOrNull() == id) stopPlaylist()
-        store.deletePlaylist(id)
+        if (store.setting("active_playlist").toLongOrNull() == id) playback.stop()
+        val deletedRules = store.deletePlaylist(id)
         "Playlist deleted ($deletedRules matching daily schedule rules removed)"
     }
     fun startPlaylist(id: Long) = perform {
@@ -180,12 +176,9 @@ class Controller : AutoCloseable {
         "Playlist started"
     }
     fun stop() = perform {
-        stopPlaylist()
+        playback.stop()
         "Playlist stopped"
     }
-
-    private fun stopPlaylist() = playback.stop()
-    private fun advancePlaylist() = playback.advance()
 
     fun addRule(time: String, itemId: Long?, playlistId: Long?) = perform {
         store.addRule(time, itemId, playlistId)
@@ -223,7 +216,8 @@ class Controller : AutoCloseable {
             playback.start(rule.playlistId)
         } else {
             val item = store.mediaById(requireNotNull(rule.mediaId)) ?: error("Scheduled file missing")
-            apply(item, stopPlaylist = true)
+            playback.stop()
+            apply(item)
         }
     }
 
@@ -238,13 +232,11 @@ class Controller : AutoCloseable {
         }
         if (store.setting("active_playlist").isNotBlank()) {
             val due = store.setting("playlist_due", "0").toLongOrNull() ?: 0L
-            if (System.currentTimeMillis() >= due) advancePlaylist()
+            if (System.currentTimeMillis() >= due) playback.advance()
         }
     }
 
     override fun close() {
         scope.cancel()
-        // The app is exiting; SQLite will also be closed by the process if an I/O action is still unwinding.
-        runCatching { store.close() }
     }
 }

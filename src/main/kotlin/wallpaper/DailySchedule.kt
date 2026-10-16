@@ -32,7 +32,11 @@ object PlaylistOrder {
     ): Selection {
         require(ids.isNotEmpty())
         if (mode == OrderMode.SEQUENTIAL) {
-            val index = (previousIndex + 1).mod(ids.size)
+            val currentIndex = if (previousId == null) -1 else ids.indexOf(previousId)
+            // An entry removed before the current one shifts its index. Prefer the
+            // stable ID; if the current entry vanished, use its former position.
+            val index = if (currentIndex >= 0) (currentIndex + 1) % ids.size
+                else if (previousIndex < 0) 0 else previousIndex.coerceAtMost(ids.lastIndex)
             return Selection(ids[index], index, emptyList())
         }
         val bag = previousBag.filter { it in ids }.distinct().toMutableList()

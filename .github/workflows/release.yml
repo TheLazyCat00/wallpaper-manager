@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.version || github.ref_name }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "::error::Run manual releases from main"; exit 1; }
-            tag="v${REQUESTED_VERSION#v}"
+            tag="v$REQUESTED_VERSION"
             if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
               echo "::error::Tag already exists: $tag"; exit 1
             fi
@@ -194,6 +194,36 @@ jobs:
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::Release $TAG already exists; refusing to overwrite"; exit 1
+          fi
+
+          # Create a lightweight tag atomically for manual releases. If a tag
+          # appeared since validation, the API create fails instead of silently
+          # publishing binaries for the wrong commit. Token-created tags do not
+          # start a second GitHub Actions workflow.
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if gh api "repos/$GH_REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              echo "::error::Tag $TAG already exists. Refusing manual release."
+              exit 1
+            fi
+            gh api --method POST "repos/$GH_REPO/git/refs" \
+              -f "ref=refs/tags/$TAG" -f "sha=$TARGET" >/dev/null
+          fi
+
+          # Peel annotated tags; a release must always identify the source
+          # commit that was actually checked out by the installer jobs.
+          ref=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG")
+          kind=$(jq -r '.object.type' <<<"$ref")
+          sha=$(jq -r '.object.sha' <<<"$ref")
+          for _ in 1 2 3 4 5; do
+            if [[ "$kind" == "commit" ]]; then break; fi
+            [[ "$kind" == "tag" ]] || { echo "::error::Unexpected tag target: $kind"; exit 1; }
+            tag_object=$(gh api "repos/$GH_REPO/git/tags/$sha")
+            kind=$(jq -r '.object.type' <<<"$tag_object")
+            sha=$(jq -r '.object.sha' <<<"$tag_object")
+          done
+          if [[ "$kind" != "commit" || "$sha" != "$TARGET" ]]; then
+            echo "::error::Tag $TAG points to $sha ($kind), but installers were built from $TARGET"
+            exit 1
           fi
           if [[ "$PRERELEASE" == "true" ]]; then
             gh release create "$TAG" release/* --target "$TARGET" --title "$TAG" --generate-notes --prerelease

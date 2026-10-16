@@ -80,6 +80,13 @@ class ControllerTest {
         assertEquals("Invalid action", controller.state.notice)
     }
 
+    @Test fun openingAMissingFileReportsTheFailure() = controllerTest { controller, store, _ ->
+        val missing = directory.resolve("missing.png")
+        store.importMedia(missing, MediaKind.IMAGE, null, null, 0)
+        controller.openMedia(store.listMedia().single()).join()
+        assertEquals("File no longer exists: $missing", controller.state.notice)
+    }
+
     @Test fun shutdownClosesTheDatabaseAfterAnInFlightActionFinishes() = controllerTest { controller, store, lifetime ->
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)

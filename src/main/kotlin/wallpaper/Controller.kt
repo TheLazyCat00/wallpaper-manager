@@ -16,6 +16,7 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.awt.Desktop
 import java.nio.file.Path
 import java.time.LocalDateTime
 
@@ -93,6 +94,14 @@ class Controller internal constructor(
     }
     fun toggleFavorite(item: Media) = perform {
         store.favorite(item.id, !item.favorite)
+        null
+    }
+    fun openMedia(item: Media) = perform {
+        require(item.present) { "File no longer exists: ${item.path}" }
+        check(Desktop.isDesktopSupported()) { "Opening files is unavailable on this desktop" }
+        val applications = Desktop.getDesktop()
+        check(applications.isSupported(Desktop.Action.OPEN)) { "Opening files is unavailable on this desktop" }
+        applications.open(item.path.toFile())
         null
     }
     fun removeFromLibrary(item: Media) = perform {

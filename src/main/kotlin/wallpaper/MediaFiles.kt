@@ -10,6 +10,10 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.FileVisitResult
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import java.io.IOException
 import javax.imageio.ImageIO
 
 object MediaFiles {
@@ -23,29 +27,54 @@ object MediaFiles {
         else -> null
     }
 
-    /** Directories are visited without following symlinks. Bad files are reported to the UI. */
-    fun importPaths(store: Store, paths: List<Path>): Int {
-        var count = 0
-        for (path in paths) {
-            val entries = if (Files.isDirectory(path)) Files.walk(path).use { stream ->
-                stream.filter { Files.isRegularFile(it) }.toList()
-            } else listOf(path)
-            for (file in entries) {
-                val kind = kind(file) ?: continue
-                if (!Files.isRegularFile(file)) continue
-                val size = Files.size(file)
-                var width: Int? = null
-                var height: Int? = null
-                if (kind == MediaKind.IMAGE) {
-                    val dimensions = dimensions(file)
-                    width = dimensions?.first
-                    height = dimensions?.second
+    data class ImportResult(val imported: Int, val failed: Int)
+
+    /** Walk without symlinks, continuing after unreadable files and subdirectories. */
+    fun importPaths(store: Store, paths: List<Path>): ImportResult {
+        var imported = 0
+        var failed = 0
+
+        fun importFile(file: Path) {
+            val fileKind = kind(file) ?: return
+            try {
+                if (!Files.isRegularFile(file)) {
+                    failed++
+                    return
                 }
-                store.importMedia(file, kind, width, height, size)
-                count++
+                val size = Files.size(file)
+                val dimensions = if (fileKind == MediaKind.IMAGE) dimensions(file) else null
+                store.importMedia(file, fileKind, dimensions?.first, dimensions?.second, size)
+                imported++
+            } catch (_: Exception) {
+                failed++
             }
         }
-        return count
+
+        for (path in paths) {
+            try {
+                Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                        if (attrs.isRegularFile) importFile(file)
+                        return FileVisitResult.CONTINUE
+                    }
+
+                    override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                        failed++
+                        return FileVisitResult.CONTINUE
+                    }
+
+                    override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
+                        if (exc != null) failed++
+                        return FileVisitResult.CONTINUE
+                    }
+                })
+            } catch (_: IOException) {
+                failed++
+            } catch (_: SecurityException) {
+                failed++
+            }
+        }
+        return ImportResult(imported, failed)
     }
 
     private fun dimensions(path: Path): Pair<Int, Int>? = runCatching {

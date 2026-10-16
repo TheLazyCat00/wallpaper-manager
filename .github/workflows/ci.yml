@@ -46,6 +46,14 @@ jobs:
         if: matrix.os == 'macos-15'
         run: devbox run package-dmg
 
+      - name: Show packaging diagnostics
+        if: failure() && matrix.devbox
+        shell: bash
+        run: |
+          if [ -d build/compose/logs ]; then
+            find build/compose/logs -type f -print -exec cat {} \;
+          fi
+
       - name: Test (native Windows tools)
         if: ${{ !matrix.devbox }}
         shell: pwsh

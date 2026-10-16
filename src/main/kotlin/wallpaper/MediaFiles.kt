@@ -3,7 +3,9 @@ package wallpaper
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.jetbrains.skiko.toComposeImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import org.jetbrains.skia.Image
+import java.io.ByteArrayOutputStream
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.nio.file.Files
@@ -92,7 +94,12 @@ object MediaFiles {
                         g.dispose()
                         image.flush()
                     }
-                    resized.toComposeImageBitmap()
+                    val bytes = ByteArrayOutputStream().use { output ->
+                        check(ImageIO.write(resized, "png", output))
+                        output.toByteArray()
+                    }
+                    resized.flush()
+                    Image.makeFromEncoded(bytes).toComposeImageBitmap()
                 } finally {
                     reader.dispose()
                 }

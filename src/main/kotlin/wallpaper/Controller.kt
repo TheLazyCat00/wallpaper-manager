@@ -39,6 +39,8 @@ class Controller : AutoCloseable {
         private set
     var scheduleEnabled by mutableStateOf(true)
         private set
+    var closeToTray by mutableStateOf(true)
+        private set
     var style by mutableStateOf(WallpaperStyle.FILL)
         private set
     val canRestore get() = desktop.canRestore()
@@ -65,6 +67,7 @@ class Controller : AutoCloseable {
         runningPlaylist = store.setting("active_playlist").toLongOrNull()
         dark = store.setting("appearance", "dark") == "dark"
         scheduleEnabled = store.setting("schedule_enabled", "true") == "true"
+        closeToTray = store.setting("close_to_tray", "true") == "true"
         style = runCatching {
             WallpaperStyle.valueOf(store.setting("style", WallpaperStyle.FILL.name))
         }.getOrDefault(WallpaperStyle.FILL)
@@ -100,6 +103,10 @@ class Controller : AutoCloseable {
     }
     fun setAppearance(isDark: Boolean) = perform {
         store.setSetting("appearance", if (isDark) "dark" else "light")
+        null
+    }
+    fun configureCloseToTray(enabled: Boolean) = perform {
+        store.setSetting("close_to_tray", enabled.toString())
         null
     }
     fun selectStyle(newStyle: WallpaperStyle) = perform {

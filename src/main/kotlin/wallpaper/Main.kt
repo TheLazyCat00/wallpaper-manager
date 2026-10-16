@@ -122,15 +122,17 @@ private fun WallpaperApp(vm: Controller) {
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-                when (page) {
-                    Page.HOME -> HomePage(vm) { page = Page.LIBRARY }
-                    Page.DESKTOP -> DesktopPage(vm)
-                    Page.LOCK -> LockPage(vm)
-                    Page.LIBRARY -> LibraryPage(vm, selectedPlaylistId)
-                    Page.PLAYLISTS -> PlaylistsPage(vm, activePlaylist,
-                        onSelect = { selectedPlaylistId = it })
-                    Page.SCHEDULE -> SchedulePage(vm)
-                    Page.SETTINGS -> SettingsPage(vm)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when (page) {
+                        Page.HOME -> HomePage(vm) { page = Page.LIBRARY }
+                        Page.DESKTOP -> DesktopPage(vm)
+                        Page.LOCK -> LockPage(vm)
+                        Page.LIBRARY -> LibraryPage(vm, selectedPlaylistId)
+                        Page.PLAYLISTS -> PlaylistsPage(vm, activePlaylist,
+                            onSelect = { selectedPlaylistId = it })
+                        Page.SCHEDULE -> SchedulePage(vm)
+                        Page.SETTINGS -> SettingsPage(vm)
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 Surface(

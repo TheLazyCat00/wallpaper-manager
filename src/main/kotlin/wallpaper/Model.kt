@@ -18,7 +18,7 @@ enum class WallpaperStyle(val label: String, val registry: String, val tile: Str
 data class Media(
     val id: Long, val path: Path, val kind: MediaKind,
     val width: Int?, val height: Int?, val bytes: Long,
-    val favorite: Boolean, val addedAt: Long
+    val favorite: Boolean, val addedAt: Long, val revision: Long = 0
 ) {
     val name get() = path.fileName.toString()
     val present get() = Files.isRegularFile(path)

@@ -8,7 +8,12 @@ enum class MediaKind { IMAGE, VIDEO }
 enum class OrderMode { SEQUENTIAL, RANDOM }
 enum class WallpaperStyle(val label: String, val registry: String, val tile: String) {
     FILL("Fill", "10", "0"), FIT("Fit", "6", "0"),
-    STRETCH("Stretch", "2", "0"), CENTER("Center", "0", "0"), TILE("Tile", "0", "1")
+    STRETCH("Stretch", "2", "0"), CENTER("Center", "0", "0"), TILE("Tile", "0", "1");
+
+    companion object {
+        fun fromSetting(value: String?): WallpaperStyle =
+            entries.firstOrNull { it.name == value } ?: FILL
+    }
 }
 
 data class Media(

@@ -77,6 +77,8 @@ The app stores absolute media paths; moving a file outside the app can make its 
 
 Wallpaper changes call operating-system services and may behave differently depending on the desktop environment. The JVM UI runs on all three platforms, but not every desktop environment is supported.
 
+On Linux, the active session selects the wallpaper backend: GNOME uses `gsettings`, and KDE Plasma uses `plasma-apply-wallpaperimage` (which must be installed). Detection reads `XDG_CURRENT_DESKTOP`, falling back to `XDG_SESSION_DESKTOP` and `DESKTOP_SESSION` when earlier values are absent or blank. An unknown or missing session reports an error. A successful settings write for an inactive desktop is never used to infer support.
+
 ## Architecture
 
 ```text
@@ -88,6 +90,7 @@ src/main/kotlin/wallpaper/
   Controller.kt       UI state, serialized actions and automation loop
   DailySchedule.kt    Date selection and non-repeating shuffle bag
   DesktopWallpaper.kt Operating-system wallpaper adapters
+  LinuxWallpaper.kt   Session detection and GNOME/KDE command routing
   MediaFiles.kt       File import, image metadata and thumbnails
   TraySupport.kt      AWT system tray and close-to-tray controls
 src/test/kotlin/wallpaper/

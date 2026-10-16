@@ -29,9 +29,10 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - id: release
         name: Validate requested version and source
         env:
@@ -84,12 +85,13 @@ jobs:
             devbox: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
       - name: Install latest Devbox and project tools
         if: matrix.devbox
-        uses: jetify-com/devbox-install-action@v0.15.0
+        uses: jetify-com/devbox-install-action@8c6a66ed6273138b1915457069de78cb52fe3bd7 # v0.15.0 (latest stable CLI)
         # Omit devbox-version: latest stable Devbox CLI is selected automatically.
 
       - name: Test and package in Devbox
@@ -152,7 +154,7 @@ jobs:
           New-Item -Path release -ItemType Directory -Force | Out-Null
           Copy-Item $files[0].FullName "release/WallpaperManager-$env:TAG-$env:PLATFORM.msi"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: installer-${{ matrix.platform }}
           path: release/*
@@ -164,7 +166,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: installer-*
           path: release

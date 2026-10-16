@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "::error::Run manual releases from main"; exit 1; }
-            tag="v$(echo "$REQUESTED_VERSION" | sed 's/^v//')"
+            tag="v${REQUESTED_VERSION#v}"
             if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
               echo "::error::Tag already exists: $tag"; exit 1
             fi
@@ -51,9 +51,11 @@ jobs:
           if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::Use a stable SemVer tag such as v0.1.0"; exit 1
           fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=$(echo "$tag" | sed 's/^v//')" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
 
   installers:
     needs: validate
@@ -164,7 +166,7 @@ jobs:
           for asset in "WallpaperManager-$TAG-linux-x64.deb" "WallpaperManager-$TAG-macos-x64.dmg" "WallpaperManager-$TAG-windows-x64.msi"; do
             test -s "release/$asset" || { echo "::error::Missing $asset"; exit 1; }
           done
-          (cd release && sha256sum *.deb *.dmg *.msi > SHA256SUMS.txt)
+          (cd release && sha256sum ./*.deb ./*.dmg ./*.msi > SHA256SUMS.txt)
 
       - name: Publish GitHub release
         env:

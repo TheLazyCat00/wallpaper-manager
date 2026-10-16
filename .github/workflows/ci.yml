@@ -30,9 +30,21 @@ jobs:
         if: matrix.devbox
         uses: jetify-com/devbox-install-action@v0.15.0
 
+      - name: Validate GitHub Actions workflows
+        if: matrix.os == 'ubuntu-24.04'
+        run: devbox run lint-workflows
+
       - name: Test (Devbox)
         if: matrix.devbox
         run: devbox run test
+
+      - name: Package Linux installer (Devbox)
+        if: matrix.os == 'ubuntu-24.04'
+        run: devbox run package-deb
+
+      - name: Package macOS installer (Devbox)
+        if: matrix.os == 'macos-15'
+        run: devbox run package-dmg
 
       - name: Test (native Windows tools)
         if: ${{ !matrix.devbox }}
@@ -43,4 +55,5 @@ jobs:
           $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
           java -version
           gradle --version
-          gradle test --no-daemon
+          gradle test packageMsi --no-daemon
+          if ($LASTEXITCODE -ne 0) { throw 'Gradle test/packageMsi failed' }

@@ -10,6 +10,18 @@ class PlaylistOrderTest {
         assertEquals(20L, PlaylistOrder.next(ids, OrderMode.SEQUENTIAL, 0, 10, emptyList()).id)
         assertEquals(10L, PlaylistOrder.next(ids, OrderMode.SEQUENTIAL, 2, 30, emptyList()).id)
     }
+    @Test fun sequentialUsesCurrentIdAfterEarlierItemRemoved() {
+        // B was previously index 1; after A disappears, B becomes index 0.
+        val selection = PlaylistOrder.next(listOf(20L, 30L), OrderMode.SEQUENTIAL,
+            previousIndex = 1, previousId = 20L, previousBag = emptyList())
+        assertEquals(30L, selection.id)
+        assertEquals(1, selection.index)
+    }
+    @Test fun sequentialUsesFormerPositionIfCurrentItemRemoved() {
+        val selection = PlaylistOrder.next(listOf(10L, 30L), OrderMode.SEQUENTIAL,
+            previousIndex = 1, previousId = 20L, previousBag = emptyList())
+        assertEquals(30L, selection.id)
+    }
     @Test fun randomVisitsEveryoneOnce() {
         val ids = listOf(10L, 20L, 30L)
         var bag = emptyList<Long>()

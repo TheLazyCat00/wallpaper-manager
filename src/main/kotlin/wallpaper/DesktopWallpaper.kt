@@ -8,6 +8,7 @@ import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
+import java.util.concurrent.TimeUnit
 
 /** Native desktop wallpaper setting is separated from UI and playlist logic. */
 class DesktopWallpaper(private val store: Store) {
@@ -67,6 +68,9 @@ class DesktopWallpaper(private val store: Store) {
         val backup = Files.createDirectories(AppFolders.home.resolve("backup"))
             .resolve("original." + source.fileName.toString().substringAfterLast('.', "bmp"))
         Files.copy(source, backup, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        // Read positioning before the first wallpaper change, not during restore.
+        store.setSetting("original_style", registryValue("WallpaperStyle") ?: "10")
+        store.setSetting("original_tile", registryValue("TileWallpaper") ?: "0")
         store.setSetting("original_backup", backup.toString())
     }
 
@@ -76,14 +80,21 @@ class DesktopWallpaper(private val store: Store) {
         check(windows) { "Restore original is currently implemented for Windows only" }
         val file = Path.of(store.setting("original_backup"))
         require(Files.isRegularFile(file)) { "Original wallpaper backup is missing" }
-        setWindows(file, WallpaperStyle.FILL)
+        setWindows(file, store.setting("original_style", "10"), store.setting("original_tile", "0"))
         store.setSetting("current_path", "")
     }
 
-    private fun setWindows(file: Path, style: WallpaperStyle) {
-        val key = "HKCU\\Control Panel\\Desktop"
-        runCommand("reg", "add", key, "/v", "WallpaperStyle", "/t", "REG_SZ", "/d", style.registry, "/f")
-        runCommand("reg", "add", key, "/v", "TileWallpaper", "/t", "REG_SZ", "/d", style.tile, "/f")
+    private fun setWindows(file: Path, style: WallpaperStyle) = setWindows(file, style.registry, style.tile)
+
+    private fun registryValue(name: String): String? = runCatching {
+        val text = runCommand("reg", "query", "HKCU\\\\Control Panel\\\\Desktop", "/v", name)
+        Regex("""(?m)^\\s*${Regex.escape(name)}\\s+REG_SZ\\s+(\\S+)""").find(text)?.groupValues?.get(1)
+    }.getOrNull()
+
+    private fun setWindows(file: Path, registryStyle: String, tile: String) {
+        val key = "HKCU\\\\Control Panel\\\\Desktop"
+        runCommand("reg", "add", key, "/v", "WallpaperStyle", "/t", "REG_SZ", "/d", registryStyle, "/f")
+        runCommand("reg", "add", key, "/v", "TileWallpaper", "/t", "REG_SZ", "/d", tile, "/f")
         val full = file.toAbsolutePath().toString()
         val buffer = Memory((full.length + 1L) * Native.WCHAR_SIZE)
         buffer.setWideString(0, full)
@@ -92,9 +103,26 @@ class DesktopWallpaper(private val store: Store) {
         }
     }
 
-    private fun runCommand(vararg parts: String) {
-        val process = ProcessBuilder(*parts).redirectErrorStream(true).start()
-        val result = process.inputStream.bufferedReader().use { it.readText() }
-        check(process.waitFor() == 0) { "Command failed: " + parts.first() + " — " + result.take(300) }
+    /** Enforce a deadline even when a child blocks on output or an OS permission prompt. */
+    private fun runCommand(vararg parts: String): String {
+        val output = Files.createTempFile("wallpaper-command-", ".log")
+        var process: Process? = null
+        try {
+            process = ProcessBuilder(*parts).redirectErrorStream(true)
+                .redirectOutput(output.toFile()).start()
+            if (!process.waitFor(30, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                process.waitFor(5, TimeUnit.SECONDS)
+                error("Command timed out: " + parts.first())
+            }
+            val text = Files.readString(output)
+            check(process.exitValue() == 0) {
+                "Command failed: " + parts.first() + " — " + text.take(300)
+            }
+            return text
+        } finally {
+            if (process?.isAlive == true) process.destroyForcibly()
+            Files.deleteIfExists(output)
+        }
     }
 }

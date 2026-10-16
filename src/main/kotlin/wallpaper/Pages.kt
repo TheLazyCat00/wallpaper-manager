@@ -18,12 +18,13 @@ import androidx.compose.ui.unit.dp
 internal fun PlaylistsPage(
     vm: Controller, selected: Playlist?, onSelect: (Long?) -> Unit
 ) {
+    val state = vm.state
     var name by remember { mutableStateOf("") }
     var minutes by remember { mutableStateOf("30") }
     var random by remember { mutableStateOf(false) }
     var addMediaId by remember { mutableStateOf<Long?>(null) }
-    val chosen = selected ?: vm.playlists.firstOrNull()
-    val candidates = vm.media.filter { it.kind == MediaKind.IMAGE }
+    val chosen = selected ?: state.playlists.firstOrNull()
+    val candidates = state.media.filter { it.kind == MediaKind.IMAGE }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(name, onValueChange = { name = it },
@@ -38,11 +39,11 @@ internal fun PlaylistsPage(
                 name = ""
             }, enabled = name.isNotBlank()) { Text("Create") }
         }
-        if (vm.playlists.isEmpty()) {
+        if (state.playlists.isEmpty()) {
             Text("Create a playlist, then add images from the Library page.")
         } else {
             LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(vm.playlists, key = { it.id }) { playlist ->
+                items(state.playlists, key = { it.id }) { playlist ->
                     FilterChip(
                         selected = chosen?.id == playlist.id,
                         onClick = { onSelect(playlist.id) },
@@ -60,15 +61,15 @@ internal fun PlaylistsPage(
                             Button(onClick = { vm.startPlaylist(playlist.id) },
                                 enabled = playlist.count > 0) { Text("Start") }
                             OutlinedButton(onClick = vm::next,
-                                enabled = vm.runningPlaylist == playlist.id) { Text("Next") }
+                                enabled = state.runningPlaylist == playlist.id) { Text("Next") }
                             OutlinedButton(onClick = vm::stop,
-                                enabled = vm.runningPlaylist == playlist.id) { Text("Stop") }
+                                enabled = state.runningPlaylist == playlist.id) { Text("Stop") }
                             OutlinedButton(onClick = {
                                 vm.deletePlaylist(playlist.id)
                                 onSelect(null)
                             }) { Text("Delete playlist") }
                         }
-                        if (vm.runningPlaylist == playlist.id) {
+                        if (state.runningPlaylist == playlist.id) {
                             Text("Currently playing", color = MaterialTheme.colorScheme.primary)
                         }
                     }
@@ -94,7 +95,8 @@ internal fun PlaylistsPage(
 
 @Composable
 private fun PlaylistMembers(vm: Controller, playlistId: Long) {
-    val items = vm.members[playlistId].orEmpty()
+    val state = vm.state
+    val items = state.members[playlistId].orEmpty()
     if (items.isEmpty()) {
         Text("Empty playlist. Add an image above or from the Library.")
     } else {
@@ -112,20 +114,21 @@ private fun PlaylistMembers(vm: Controller, playlistId: Long) {
 
 @Composable
 internal fun SchedulePage(vm: Controller) {
+    val state = vm.state
     var time by remember { mutableStateOf("08:00") }
     var isPlaylist by remember { mutableStateOf(false) }
     var chosenImage by remember { mutableStateOf<Long?>(null) }
     var chosenPlaylist by remember { mutableStateOf<Long?>(null) }
-    val images = vm.media.filter { it.kind == MediaKind.IMAGE }
+    val images = state.media.filter { it.kind == MediaKind.IMAGE }
     val mediaTarget = chosenImage?.takeIf { id -> images.any { it.id == id } }
         ?: images.firstOrNull()?.id
-    val playlistTarget = chosenPlaylist?.takeIf { id -> vm.playlists.any { it.id == id } }
-        ?: vm.playlists.firstOrNull()?.id
+    val playlistTarget = chosenPlaylist?.takeIf { id -> state.playlists.any { it.id == id } }
+        ?: state.playlists.firstOrNull()?.id
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Enable daily schedule", modifier = Modifier.weight(1f))
-            Switch(checked = vm.scheduleEnabled, onCheckedChange = vm::enableSchedule)
+            Switch(checked = state.scheduleEnabled, onCheckedChange = vm::enableSchedule)
         }
         HorizontalDivider()
         Text("Add a daily rule", style = MaterialTheme.typography.titleLarge)
@@ -140,7 +143,7 @@ internal fun SchedulePage(vm: Controller) {
             FilterChip(selected = isPlaylist, onClick = { isPlaylist = true },
                 label = { Text("Playlist") })
         }
-        val targetList = if (isPlaylist) vm.playlists.map { it.id to it.name }
+        val targetList = if (isPlaylist) state.playlists.map { it.id to it.name }
             else images.map { it.id to it.name }
         val chosen = if (isPlaylist) playlistTarget else mediaTarget
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -156,8 +159,8 @@ internal fun SchedulePage(vm: Controller) {
         }
         HorizontalDivider()
         Text("Daily rules", style = MaterialTheme.typography.titleLarge)
-        if (vm.rules.isEmpty()) Text("No schedule rules yet.")
-        vm.rules.forEach { rule ->
+        if (state.rules.isEmpty()) Text("No schedule rules yet.")
+        state.rules.forEach { rule ->
             Surface(tonalElevation = 2.dp, shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(rule.time, fontWeight = FontWeight.Bold, modifier = Modifier.width(72.dp))
@@ -227,18 +230,19 @@ private fun SearchableTargetPicker(
 
 @Composable
 internal fun SettingsPage(vm: Controller) {
+    val state = vm.state
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("Appearance", style = MaterialTheme.typography.titleLarge)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Dark mode")
-            Switch(checked = vm.dark, onCheckedChange = vm::setAppearance)
+            Switch(checked = state.dark, onCheckedChange = vm::setAppearance)
         }
         HorizontalDivider()
         Text("Background behavior", style = MaterialTheme.typography.titleLarge)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Close to system tray")
-            Switch(checked = vm.closeToTray, onCheckedChange = vm::configureCloseToTray)
+            Switch(checked = state.closeToTray, onCheckedChange = vm::configureCloseToTray)
         }
         Text("When the tray is available, schedules and playlists continue running " +
             "after closing the window. Choose Exit from the tray menu to quit.")

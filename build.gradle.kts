@@ -8,6 +8,7 @@ version = "0.1.0"
 kotlin { jvmToolchain(21) }
 dependencies {
     implementation(compose.desktop.currentOs)
+    implementation(compose.material3)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("net.java.dev.jna:jna:5.17.0")

@@ -2,6 +2,7 @@ package wallpaper
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -40,8 +41,8 @@ internal fun PlaylistsPage(
         if (vm.playlists.isEmpty()) {
             Text("Create a playlist, then add images from the Library page.")
         } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                vm.playlists.take(6).forEach { playlist ->
+            LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(vm.playlists, key = { it.id }) { playlist ->
                     FilterChip(
                         selected = chosen?.id == playlist.id,
                         onClick = { onSelect(playlist.id) },

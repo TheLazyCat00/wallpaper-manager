@@ -50,7 +50,7 @@ The project can also be opened directly in IntelliJ IDEA. The latest stable Devb
 
 ## Releases
 
-The [Release workflow](.github/workflows/release.yml) publishes installers for **Windows x64 (.msi)**, **macOS x64 (.dmg)** and **Linux x64 (.deb)**.
+The [Release workflow](.github/workflows/release.yml) publishes installers for **Windows x64 (.msi)**, **macOS ARM64 (.dmg)** and **Linux x64 (.deb)**.
 
 To release after merging the port to `main`:
 

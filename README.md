@@ -60,7 +60,7 @@ To release after merging the port to `main`:
 
 Alternatively, pushing an existing tag such as `v0.1.0` starts the same release workflow. Only stable `vMAJOR.MINOR.PATCH` tags are accepted. A manual release refuses to reuse an existing tag; an existing published GitHub release is never overwritten.
 
-The version is passed to Gradle through `RELEASE_VERSION` so installer versions agree with the tag (local development defaults to `0.1.0`). Building a release requires the corresponding native operating system; native macOS and Windows installers cannot be cross-compiled from Linux.
+The version is passed to Gradle through `RELEASE_VERSION` (local development defaults to `0.1.0`). Windows and Linux native versions match the tag. **macOS exception:** jpackage rejects a zero major version, so the internal macOS bundle version maps `0.1.0` to `1.1.0` (major + 1, preserving upgrade order); the GitHub release tag and downloadable DMG filename still use `v0.1.0`. Building a release requires the corresponding native operating system; native macOS and Windows installers cannot be cross-compiled from Linux.
 
 The installers are currently **unsigned**. Windows SmartScreen and macOS Gatekeeper may show warnings. Do not advertise the installers as feature-complete yet: video/lock-screen capabilities remain unported.
 

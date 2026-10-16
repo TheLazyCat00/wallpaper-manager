@@ -18,7 +18,7 @@ import java.time.LocalDateTime
 class Controller : AutoCloseable {
     private val store = Store(AppFolders.home.resolve("library.db"))
     private val desktop = DesktopWallpaper(store)
-    private val playback = PlaylistPlayback(store) { item -> apply(item, stopPlaylist = false) }
+    private val playback = PlaylistPlayback(store, apply = { item -> apply(item, stopPlaylist = false) })
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gate = Mutex()
 

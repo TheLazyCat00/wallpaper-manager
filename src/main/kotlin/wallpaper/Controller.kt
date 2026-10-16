@@ -68,9 +68,7 @@ class Controller : AutoCloseable {
         dark = store.setting("appearance", "dark") == "dark"
         scheduleEnabled = store.setting("schedule_enabled", "true") == "true"
         closeToTray = store.setting("close_to_tray", "true") == "true"
-        style = runCatching {
-            WallpaperStyle.valueOf(store.setting("style", WallpaperStyle.FILL.name))
-        }.getOrDefault(WallpaperStyle.FILL)
+        style = WallpaperStyle.fromSetting(store.setting("style", WallpaperStyle.FILL.name))
     }
 
     /** Public actions deliberately return immediately; errors are surfaced in the status strip. */
@@ -124,9 +122,7 @@ class Controller : AutoCloseable {
             "Live video wallpaper is not implemented in this Kotlin port yet"
         }
         if (stopPlaylist) store.setSetting("active_playlist", "")
-        val selectedStyle = runCatching {
-            WallpaperStyle.valueOf(store.setting("style", WallpaperStyle.FILL.name))
-        }.getOrDefault(WallpaperStyle.FILL)
+        val selectedStyle = WallpaperStyle.fromSetting(store.setting("style", WallpaperStyle.FILL.name))
         desktop.set(item.path, selectedStyle)
     }
 

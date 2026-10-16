@@ -89,7 +89,7 @@ jobs:
       - name: Test and package in Devbox
         if: matrix.devbox
         env:
-          ${{ needs.validate.outputs.version }}: ${{ needs.validate.outputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
         shell: bash
         run: devbox run -- gradle test ${{ matrix.task }} --no-daemon
 
@@ -98,7 +98,7 @@ jobs:
       - name: Test and package with preinstalled Windows tools
         if: ${{ !matrix.devbox }}
         env:
-          ${{ needs.validate.outputs.version }}: ${{ needs.validate.outputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"

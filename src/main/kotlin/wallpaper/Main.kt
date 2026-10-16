@@ -35,10 +35,34 @@ private enum class Page(val label: String) {
     LIBRARY("Library"), PLAYLISTS("Playlists"), SCHEDULE("Schedule"), SETTINGS("Settings")
 }
 
-fun main() = application {
+fun main(args: Array<String>) = application {
     val controller = remember { Controller() }
+    val visible = remember { mutableStateOf(!args.contains("--minimized")) }
+    val tray = remember {
+        TraySupport(
+            controller,
+            showWindow = { visible.value = true },
+            quit = { controller.close(); exitApplication() }
+        )
+    }
+    LaunchedEffect(tray.installed) {
+        if (!tray.installed) visible.value = true
+    }
+    DisposableEffect(tray) {
+        onDispose { tray.close() }
+    }
     Window(
-        onCloseRequest = { controller.close(); exitApplication() },
+        visible = visible.value,
+        onCloseRequest = {
+            if (controller.closeToTray && tray.installed) {
+                visible.value = false
+                tray.announceHidden()
+            } else {
+                tray.close()
+                controller.close()
+                exitApplication()
+            }
+        },
         title = "Wallpaper Manager",
         state = rememberWindowState(width = 1240.dp, height = 820.dp)
     ) {

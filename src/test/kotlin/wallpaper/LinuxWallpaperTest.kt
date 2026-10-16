@@ -8,24 +8,30 @@ import kotlin.test.assertTrue
 
 class LinuxWallpaperTest {
     private val image = Path.of("wallpapers", "morning light.png")
+    private val listKeys = listOf("gsettings", "list-keys", "org.gnome.desktop.background")
+
+    private fun successfulCommand(commands: MutableList<List<String>>, command: List<String>): String {
+        commands.add(command)
+        return if (command == listKeys) "picture-uri\npicture-uri-dark\npicture-options\n" else ""
+    }
 
     @Test fun kdeUsesPlasmaEvenWhenGsettingsWouldSucceed() {
         val commands = mutableListOf<List<String>>()
-        LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "KDE")) { commands.add(it) }.set(image)
+        LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "KDE")) { successfulCommand(commands, it) }.set(image)
         assertEquals(listOf(listOf("plasma-apply-wallpaperimage", image.toAbsolutePath().toString())), commands)
     }
 
     @Test fun gnomeSetsBothLightAndDarkUris() {
         val commands = mutableListOf<List<String>>()
-        LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "ubuntu:GNOME")) { commands.add(it) }.set(image)
+        LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "ubuntu:GNOME")) { successfulCommand(commands, it) }.set(image)
         val prefix = listOf("gsettings", "set", "org.gnome.desktop.background")
         val uri = image.toAbsolutePath().toUri().toString()
-        assertEquals(listOf(prefix + listOf("picture-uri", uri), prefix + listOf("picture-uri-dark", uri)), commands)
+        assertEquals(listOf(listKeys, prefix + listOf("picture-uri", uri), prefix + listOf("picture-uri-dark", uri)), commands)
     }
 
     @Test fun desktopMarkersAreCaseInsensitiveAndColonSeparated() {
         val commands = mutableListOf<List<String>>()
-        LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to " vendor : kde ")) { commands.add(it) }.set(image)
+        LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to " vendor : kde ")) { successfulCommand(commands, it) }.set(image)
         assertEquals("plasma-apply-wallpaperimage", commands.single().first())
     }
 
@@ -36,7 +42,7 @@ class LinuxWallpaperTest {
             mapOf("DESKTOP_SESSION" to "plasma-x11")
         )) {
             val commands = mutableListOf<List<String>>()
-            LinuxWallpaper(environment) { commands.add(it) }.set(image)
+            LinuxWallpaper(environment) { successfulCommand(commands, it) }.set(image)
             assertEquals("plasma-apply-wallpaperimage", commands.single().first())
         }
     }
@@ -44,7 +50,7 @@ class LinuxWallpaperTest {
     @Test fun currentDesktopTakesPrecedenceOverSessionFallbacks() {
         val commands = mutableListOf<List<String>>()
         LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "KDE", "DESKTOP_SESSION" to "gnome")) {
-            commands.add(it)
+            successfulCommand(commands, it)
         }.set(image)
         assertEquals("plasma-apply-wallpaperimage", commands.single().first())
     }
@@ -66,9 +72,36 @@ class LinuxWallpaperTest {
         val commands = mutableListOf<List<String>>()
         LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "GNOME")) {
             commands.add(it)
-            if ("picture-uri-dark" in it) error("Schema key unavailable")
+            "picture-uri\npicture-options\n"
         }.set(image)
+        val uri = image.toAbsolutePath().toUri().toString()
+        assertEquals(listOf(listKeys, listOf("gsettings", "set", "org.gnome.desktop.background", "picture-uri", uri)), commands)
+    }
+
+    @Test fun gnomeDarkWriteFailureIsPropagated() {
+        val commands = mutableListOf<List<String>>()
+        val failure = assertFailsWith<IllegalStateException> {
+            LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "GNOME")) {
+                val output = successfulCommand(commands, it)
+                if ("picture-uri-dark" in it) error("Dark wallpaper key is locked")
+                output
+            }.set(image)
+        }
+        assertEquals("Dark wallpaper key is locked", failure.message)
+        assertEquals(3, commands.size)
+    }
+
+    @Test fun gnomeLightWriteFailureDoesNotAttemptTheDarkWrite() {
+        val commands = mutableListOf<List<String>>()
+        assertFailsWith<IllegalStateException> {
+            LinuxWallpaper(mapOf("XDG_CURRENT_DESKTOP" to "GNOME")) {
+                val output = successfulCommand(commands, it)
+                if ("picture-uri" in it) error("Light wallpaper key is locked")
+                output
+            }.set(image)
+        }
         assertEquals(2, commands.size)
+        assertTrue(commands.none { "picture-uri-dark" in it })
     }
 
     @Test fun unsupportedOrMissingSessionFailsWithoutWritingSettings() {
@@ -78,7 +111,7 @@ class LinuxWallpaperTest {
         )) {
             val commands = mutableListOf<List<String>>()
             assertFailsWith<IllegalStateException> {
-                LinuxWallpaper(environment) { commands.add(it) }.set(image)
+                LinuxWallpaper(environment) { successfulCommand(commands, it) }.set(image)
             }
             assertTrue(commands.isEmpty())
         }

@@ -5,7 +5,7 @@ import java.nio.file.Path
 /** Select the active desktop, since a settings write can succeed for an inactive desktop. */
 internal class LinuxWallpaper(
     private val environment: Map<String, String>,
-    private val runCommand: (List<String>) -> Unit
+    private val runCommand: (List<String>) -> String
 ) {
     private enum class Desktop { GNOME, KDE }
 
@@ -33,11 +33,16 @@ internal class LinuxWallpaper(
         when (desktop()) {
             Desktop.KDE -> runCommand(listOf("plasma-apply-wallpaperimage", absolute.toString()))
             Desktop.GNOME -> {
-                val command = listOf("gsettings", "set", "org.gnome.desktop.background")
+                val schema = "org.gnome.desktop.background"
+                // Detect support explicitly; a failed write can also mean a locked key or timeout.
+                val keys = runCommand(listOf("gsettings", "list-keys", schema))
+                    .lineSequence().map { it.trim() }.toSet()
+                val command = listOf("gsettings", "set", schema)
                 val uri = absolute.toUri().toString()
                 runCommand(command + listOf("picture-uri", uri))
-                // Older GNOME schemas may not have the dark-mode key.
-                runCatching { runCommand(command + listOf("picture-uri-dark", uri)) }
+                if ("picture-uri-dark" in keys) {
+                    runCommand(command + listOf("picture-uri-dark", uri))
+                }
             }
         }
     }

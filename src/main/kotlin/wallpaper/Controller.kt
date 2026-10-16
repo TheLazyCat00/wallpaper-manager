@@ -18,6 +18,7 @@ import java.time.LocalDateTime
 class Controller : AutoCloseable {
     private val store = Store(AppFolders.home.resolve("library.db"))
     private val desktop = DesktopWallpaper(store)
+    private val playback = PlaylistPlayback(store) { item -> apply(item, stopPlaylist = false) }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gate = Mutex()
 
@@ -169,18 +170,13 @@ class Controller : AutoCloseable {
         "Removed item from playlist"
     }
     fun deletePlaylist(id: Long) = perform {
+        val deletedRules = store.listRules().count { it.playlistId == id }
         if (store.setting("active_playlist").toLongOrNull() == id) stopPlaylist()
         store.deletePlaylist(id)
-        "Playlist deleted"
+        "Playlist deleted ($deletedRules matching daily schedule rules removed)"
     }
     fun startPlaylist(id: Long) = perform {
-        require(store.playlist(id) != null) { "Playlist not found" }
-        store.setSetting("active_playlist", id.toString())
-        store.setSetting("playlist_index", "-1")
-        store.setSetting("playlist_bag", "")
-        store.setSetting("playlist_current", "")
-        store.setSetting("playlist_due", "0")
-        advancePlaylist()
+        playback.start(id)
         "Playlist started"
     }
     fun stop() = perform {
@@ -188,33 +184,8 @@ class Controller : AutoCloseable {
         "Playlist stopped"
     }
 
-    private fun stopPlaylist() {
-        store.setSetting("active_playlist", "")
-        store.setSetting("playlist_due", "")
-    }
-
-    private fun advancePlaylist() {
-        val id = store.setting("active_playlist").toLongOrNull() ?: return
-        val playlist = store.playlist(id) ?: run { stopPlaylist(); return }
-        val available = store.playlistItems(id).filter { it.present && it.kind == MediaKind.IMAGE }
-        if (available.isEmpty()) {
-            stopPlaylist()
-            error("Playlist has no available images")
-        }
-        val selection = PlaylistOrder.next(
-            available.map { it.id }, playlist.mode,
-            store.setting("playlist_index", "-1").toIntOrNull() ?: -1,
-            store.setting("playlist_current").toLongOrNull(),
-            store.setting("playlist_bag").split(',').mapNotNull { it.toLongOrNull() }
-        )
-        val item = available.first { it.id == selection.id }
-        apply(item, stopPlaylist = false)
-        store.setSetting("playlist_index", selection.index.toString())
-        store.setSetting("playlist_current", item.id.toString())
-        store.setSetting("playlist_bag", selection.remaining.joinToString(","))
-        store.setSetting("playlist_due", (System.currentTimeMillis() +
-            playlist.intervalSeconds.coerceAtLeast(60) * 1000L).toString())
-    }
+    private fun stopPlaylist() = playback.stop()
+    private fun advancePlaylist() = playback.advance()
 
     fun addRule(time: String, itemId: Long?, playlistId: Long?) = perform {
         store.addRule(time, itemId, playlistId)
@@ -249,11 +220,7 @@ class Controller : AutoCloseable {
 
     private fun applyRule(rule: DailyRule) {
         if (rule.playlistId != null) {
-            store.setSetting("active_playlist", rule.playlistId.toString())
-            store.setSetting("playlist_index", "-1")
-            store.setSetting("playlist_current", "")
-            store.setSetting("playlist_bag", "")
-            advancePlaylist()
+            playback.start(rule.playlistId)
         } else {
             val item = store.mediaById(requireNotNull(rule.mediaId)) ?: error("Scheduled file missing")
             apply(item, stopPlaylist = true)

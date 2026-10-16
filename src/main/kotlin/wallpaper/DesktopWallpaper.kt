@@ -33,11 +33,7 @@ class DesktopWallpaper(private val store: Store) {
                 "tell application \"System Events\" to set picture of every desktop to " +
                     "\"" + path.toAbsolutePath().toString().replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
         } else {
-            // GNOME uses picture-uri on current desktop. KDE users may install plasma-apply-wallpaperimage.
-            val uri = path.toAbsolutePath().toUri().toString()
-            runCatching { runCommand("gsettings", "set", "org.gnome.desktop.background", "picture-uri", uri) }
-                .getOrElse { runCommand("plasma-apply-wallpaperimage", path.toAbsolutePath().toString()) }
-            runCatching { runCommand("gsettings", "set", "org.gnome.desktop.background", "picture-uri-dark", uri) }
+            LinuxWallpaper(System.getenv()) { runCommand(*it.toTypedArray()) }.set(path)
         }
         store.setSetting("current_path", path.toAbsolutePath().toString())
         store.setSetting("style", style.name)

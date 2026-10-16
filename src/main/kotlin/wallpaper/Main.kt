@@ -362,8 +362,9 @@ private fun MediaTile(item: Media, vm: Controller, playlistId: Long?) {
 @Composable
 private fun Thumbnail(item: Media, modifier: Modifier = Modifier) {
     val thumbnail by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
-        initialValue = null, item.path, item.kind
+        initialValue = null, item.path, item.kind, item.revision
     ) {
+        value = null
         value = if (item.kind == MediaKind.IMAGE)
             MediaFiles.thumbnail(item.path) else null
     }

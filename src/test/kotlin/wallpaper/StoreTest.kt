@@ -118,4 +118,69 @@ class StoreTest {
             assertEquals("fallback", store.setting("missing", "fallback"))
         }
     }
+
+    @Test fun reimportChangesRevisionEvenWhenPathSizeAndTimestampAreUnchanged() {
+        val image = Files.write(directory.resolve("replaced.png"), byteArrayOf(1, 2, 3))
+        val modifiedAt = Files.getLastModifiedTime(image)
+        val database = directory.resolve("revision.db")
+        Store(database).use { store ->
+            store.importMedia(image, MediaKind.IMAGE, 100, 50, 3)
+            val original = store.listMedia().single()
+            store.favorite(original.id, true)
+            store.createPlaylist("Keep membership", OrderMode.SEQUENTIAL, 60)
+            val playlist = store.listPlaylists().single()
+            store.addToPlaylist(playlist.id, original.id)
+            store.addRule("07:00", original.id, null)
+
+            Files.write(image, byteArrayOf(3, 2, 1))
+            Files.setLastModifiedTime(image, modifiedAt)
+            store.importMedia(image, MediaKind.IMAGE, 100, 50, 3)
+            val updated = store.listMedia().single()
+            assertEquals(original.id, updated.id)
+            assertEquals(original.addedAt, updated.addedAt)
+            assertEquals(original.bytes, updated.bytes)
+            assertEquals(modifiedAt, Files.getLastModifiedTime(image))
+            assertEquals(original.revision + 1, updated.revision)
+            assertTrue(updated.favorite)
+            assertEquals(listOf(updated), store.playlistItems(playlist.id))
+            assertEquals(original.id, store.listRules().single().mediaId)
+        }
+        Store(database).use { store ->
+            assertEquals(1L, store.listMedia().single().revision)
+        }
+    }
+
+    @Test fun existingLibraryGainsRevisionsWithoutLosingMedia() {
+        val database = directory.resolve("legacy.db")
+        val image = directory.resolve("existing.png")
+        DriverManager.getConnection("jdbc:sqlite:$database").use { connection ->
+            connection.createStatement().use {
+                it.execute("""
+                    CREATE TABLE media (
+                        id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, kind TEXT NOT NULL,
+                        width INTEGER, height INTEGER, bytes INTEGER NOT NULL,
+                        favorite INTEGER NOT NULL DEFAULT 0, added_at INTEGER NOT NULL
+                    )
+                """.trimIndent())
+            }
+            connection.prepareStatement("""
+                INSERT INTO media(id,path,kind,bytes,favorite,added_at) VALUES (7,?,'IMAGE',3,1,123)
+            """.trimIndent()).use {
+                it.setString(1, image.toString())
+                it.executeUpdate()
+            }
+        }
+        Store(database).use { store ->
+            val item = store.listMedia().single()
+            assertEquals(7L, item.id)
+            assertEquals(123L, item.addedAt)
+            assertEquals(0L, item.revision)
+            assertTrue(item.favorite)
+            store.importMedia(image, MediaKind.IMAGE, null, null, 3)
+            assertEquals(1L, store.mediaById(item.id)?.revision)
+        }
+        Store(database).use { store ->
+            assertEquals(1L, store.listMedia().single().revision)
+        }
+    }
 }

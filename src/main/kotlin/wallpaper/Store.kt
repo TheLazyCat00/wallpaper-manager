@@ -19,7 +19,7 @@ class Store(path: Path) : AutoCloseable {
                   id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE,
                   kind TEXT NOT NULL, width INTEGER, height INTEGER,
                   bytes INTEGER NOT NULL, favorite INTEGER NOT NULL DEFAULT 0,
-                  added_at INTEGER NOT NULL
+                  added_at INTEGER NOT NULL, revision INTEGER NOT NULL DEFAULT 0
                 )
             """.trimIndent())
             s.executeUpdate("""
@@ -46,6 +46,13 @@ class Store(path: Path) : AutoCloseable {
                 )
             """.trimIndent())
             s.executeUpdate("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        }
+        // Keep libraries created before content revisions were introduced readable.
+        val mediaColumns = query("PRAGMA table_info(media)") { it.getString("name") }
+        if ("revision" !in mediaColumns) {
+            db.createStatement().use {
+                it.executeUpdate("ALTER TABLE media ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+            }
         }
     }
 
@@ -105,13 +112,15 @@ class Store(path: Path) : AutoCloseable {
         height = row.nullableInt("height"),
         bytes = row.getLong("bytes"),
         favorite = row.getInt("favorite") != 0,
-        addedAt = row.getLong("added_at")
+        addedAt = row.getLong("added_at"),
+        revision = row.getLong("revision")
     )
 
     @Synchronized fun importMedia(path: Path, kind: MediaKind, width: Int?, height: Int?, bytes: Long) {
         write("""
             INSERT INTO media(path,kind,width,height,bytes,added_at) VALUES (?,?,?,?,?,?)
-            ON CONFLICT(path) DO UPDATE SET kind=excluded.kind,width=excluded.width,height=excluded.height,bytes=excluded.bytes
+            ON CONFLICT(path) DO UPDATE SET kind=excluded.kind,width=excluded.width,height=excluded.height,
+                bytes=excluded.bytes,revision=media.revision+1
         """.trimIndent(), path.toAbsolutePath().normalize().toString(),
             kind.name, width, height, bytes, System.currentTimeMillis())
     }

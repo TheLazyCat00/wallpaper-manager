@@ -195,6 +195,14 @@ internal fun SettingsPage(vm: Controller) {
             Switch(checked = vm.dark, onCheckedChange = vm::setAppearance)
         }
         HorizontalDivider()
+        Text("Background behavior", style = MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Close to system tray")
+            Switch(checked = vm.closeToTray, onCheckedChange = vm::configureCloseToTray)
+        }
+        Text("When the tray is available, schedules and playlists continue running " +
+            "after closing the window. Choose Exit from the tray menu to quit.")
+        HorizontalDivider()
         Text("Storage", style = MaterialTheme.typography.titleLarge)
         Text("The library stores paths, not media copies. Removing an entry never deletes its file.")
         Text("Application data: " + AppFolders.home)
@@ -205,7 +213,7 @@ internal fun SettingsPage(vm: Controller) {
         Text("Windows: native static wallpaper and positioning. " +
             "macOS: static wallpapers via AppleScript. Linux: GNOME/KDE wallpaper commands.")
         Text("Not yet ported: Windows WorkerW/libmpv video wallpaper, lock screen (WinRT), " +
-            "tray integration, launch at startup, fullscreen/battery auto-pause and updater.")
+            "launch at startup, fullscreen/battery auto-pause and updater.")
         HorizontalDivider()
         Text("Original project", style = MaterialTheme.typography.titleLarge)
         Text("Inspired by adipro1/wallpaper-manager. Kotlin/Compose implementation in this repository.")

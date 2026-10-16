@@ -16,6 +16,7 @@ The original app is Windows-only; this port uses a cross-platform JVM UI and iso
 - SQLite library and settings, playlist memberships and daily schedule rules
 - Sequential and shuffle-bag playlists; configurable interval, start/stop/next and persisted playback progress
 - Schedule catch-up across restarts and enable/disable individual daily rules
+- AWT system tray with Open, Next, Random, Stop playlist, Exit; close-to-tray setting and optional --minimized launch
 - Dark/light mode and automatic CI compilation/testing on Windows, macOS and Linux
 - Removing media entries **never deletes user files**
 
@@ -25,7 +26,7 @@ The Python original also implements important Windows-specific capabilities that
 
 - Live MP4/WEBM video wallpaper behind Explorer icons (WorkerW + libmpv)
 - WinRT lock-screen wallpaper, picking frames from video, Windows Spotlight restore
-- System tray, start-at-login, single instance, fullscreen/battery/lock-screen auto-pause
+- Start-at-login, single instance, fullscreen/battery/lock-screen auto-pause
 - Drag and drop, multi-select bulk actions, update checking and installer assets
 - Video thumbnail generation, built-in video preview and detailed video duration metadata
 
@@ -80,6 +81,7 @@ src/main/kotlin/wallpaper/
   DailySchedule.kt    Date selection and non-repeating shuffle bag
   DesktopWallpaper.kt Operating-system wallpaper adapters
   MediaFiles.kt       File import, image metadata and thumbnails
+  TraySupport.kt      AWT system tray and close-to-tray controls
 src/test/kotlin/wallpaper/
   DailyScheduleTest.kt
   PlaylistOrderTest.kt

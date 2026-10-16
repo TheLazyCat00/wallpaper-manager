@@ -11,6 +11,20 @@ import kotlin.test.assertTrue
 class StoreTest {
     @TempDir lateinit var directory: Path
 
+    @Test fun removingMediaCascadesToItsDirectScheduleRules() {
+        val image = directory.resolve("scheduled.png")
+        Files.write(image, byteArrayOf(1, 2, 3))
+        Store(directory.resolve("cascade.db")).use { store ->
+            store.importMedia(image, MediaKind.IMAGE, 100, 100, 3)
+            val item = store.listMedia().single()
+            store.addRule("07:00", item.id, null)
+            assertEquals(1, store.listRules().size)
+            store.removeMedia(item.id)
+            assertTrue(store.listRules().isEmpty())
+            assertTrue(Files.exists(image))
+        }
+    }
+
     @Test fun savesLibraryFavoritesPlaylistsAndRules() {
         val image = directory.resolve("picture.png")
         Files.write(image, byteArrayOf(1, 2, 3))

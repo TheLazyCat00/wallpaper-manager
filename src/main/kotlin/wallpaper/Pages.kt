@@ -129,7 +129,7 @@ internal fun SchedulePage(vm: Controller) {
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Enable daily schedule", modifier = Modifier.weight(1f))
-            Switch(checked = vm.scheduleEnabled, onCheckedChange = vm::setScheduleEnabled)
+            Switch(checked = vm.scheduleEnabled, onCheckedChange = vm::enableSchedule)
         }
         HorizontalDivider()
         Text("Add a daily rule", style = MaterialTheme.typography.titleLarge)

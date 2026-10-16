@@ -75,21 +75,14 @@ internal fun PlaylistsPage(
                 }
                 Text("Add images to this playlist", fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    var menuExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedButton(onClick = { menuExpanded = true }) {
-                            Text(candidates.firstOrNull { it.id == addMediaId }?.name ?: "Choose image")
-                        }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            candidates.take(100).forEach { image ->
-                                DropdownMenuItem(text = { Text(image.name) },
-                                    onClick = { addMediaId = image.id; menuExpanded = false })
-                            }
-                        }
-                    }
+                    SearchableTargetPicker(
+                        options = candidates.map { it.id to it.name },
+                        selectedId = addMediaId,
+                        onSelect = { addMediaId = it }
+                    )
                     Button(onClick = {
                         candidates.firstOrNull { it.id == addMediaId }?.let { vm.addToPlaylist(playlist.id, it) }
-                    }, enabled = addMediaId != null) { Text("Add image") }
+                    }, enabled = candidates.any { it.id == addMediaId }) { Text("Add image") }
                 }
                 Text("Playlist content", fontWeight = FontWeight.SemiBold)
                 // Stored membership is requested without blocking the UI.
@@ -124,8 +117,10 @@ internal fun SchedulePage(vm: Controller) {
     var chosenImage by remember { mutableStateOf<Long?>(null) }
     var chosenPlaylist by remember { mutableStateOf<Long?>(null) }
     val images = vm.media.filter { it.kind == MediaKind.IMAGE }
-    val mediaTarget = chosenImage ?: images.firstOrNull()?.id
-    val playlistTarget = chosenPlaylist ?: vm.playlists.firstOrNull()?.id
+    val mediaTarget = chosenImage?.takeIf { id -> images.any { it.id == id } }
+        ?: images.firstOrNull()?.id
+    val playlistTarget = chosenPlaylist?.takeIf { id -> vm.playlists.any { it.id == id } }
+        ?: vm.playlists.firstOrNull()?.id
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -145,24 +140,15 @@ internal fun SchedulePage(vm: Controller) {
             FilterChip(selected = isPlaylist, onClick = { isPlaylist = true },
                 label = { Text("Playlist") })
         }
-        var expanded by remember { mutableStateOf(false) }
         val targetList = if (isPlaylist) vm.playlists.map { it.id to it.name }
             else images.map { it.id to it.name }
         val chosen = if (isPlaylist) playlistTarget else mediaTarget
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                OutlinedButton(onClick = { expanded = true }) {
-                    Text(targetList.firstOrNull { it.first == chosen }?.second ?: "Choose target")
-                }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    targetList.take(100).forEach { (id, label) ->
-                        DropdownMenuItem(text = { Text(label) }, onClick = {
-                            if (isPlaylist) chosenPlaylist = id else chosenImage = id
-                            expanded = false
-                        })
-                    }
-                }
-            }
+            SearchableTargetPicker(
+                options = targetList,
+                selectedId = chosen,
+                onSelect = { id -> if (isPlaylist) chosenPlaylist = id else chosenImage = id }
+            )
             Button(onClick = {
                 vm.addRule(time, if (isPlaylist) null else mediaTarget,
                     if (isPlaylist) playlistTarget else null)
@@ -183,6 +169,59 @@ internal fun SchedulePage(vm: Controller) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Searchable, lazy selection for large wallpaper libraries.
+ * Unlike a DropdownMenu with an arbitrary limit, every target remains reachable.
+ */
+@Composable
+private fun SearchableTargetPicker(
+    options: List<Pair<Long, String>>,
+    selectedId: Long?,
+    onSelect: (Long) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    OutlinedButton(onClick = { query = ""; open = true }, enabled = options.isNotEmpty()) {
+        Text(
+            options.firstOrNull { it.first == selectedId }?.second ?: "Choose target",
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+    }
+    if (open) {
+        val matching = matchingTargets(options, query)
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text("Choose a wallpaper or playlist") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = query, onValueChange = { query = it },
+                        label = { Text("Search targets") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().height(320.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(matching, key = { it.first }) { (id, label) ->
+                            TextButton(
+                                onClick = { onSelect(id); open = false },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(label, maxLines = 2, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+                    if (matching.isEmpty()) Text("No matching targets")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { open = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

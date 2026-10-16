@@ -23,7 +23,6 @@ internal fun PlaylistsPage(
     var minutes by remember { mutableStateOf("30") }
     var random by remember { mutableStateOf(false) }
     var addMediaId by remember { mutableStateOf<Long?>(null) }
-    val chosen = selected ?: state.playlists.firstOrNull()
     val candidates = state.media.filter { it.kind == MediaKind.IMAGE }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -45,13 +44,13 @@ internal fun PlaylistsPage(
             LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.playlists, key = { it.id }) { playlist ->
                     FilterChip(
-                        selected = chosen?.id == playlist.id,
+                        selected = selected?.id == playlist.id,
                         onClick = { onSelect(playlist.id) },
                         label = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                     )
                 }
             }
-            chosen?.let { playlist ->
+            selected?.let { playlist ->
                 Surface(tonalElevation = 2.dp, shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(playlist.name, style = MaterialTheme.typography.titleLarge)
@@ -86,7 +85,6 @@ internal fun PlaylistsPage(
                     }, enabled = candidates.any { it.id == addMediaId }) { Text("Add image") }
                 }
                 Text("Playlist content", fontWeight = FontWeight.SemiBold)
-                // Stored membership is requested without blocking the UI.
                 PlaylistMembers(vm, playlist.id)
             }
         }

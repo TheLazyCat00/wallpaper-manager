@@ -4,11 +4,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,10 +23,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import java.awt.Desktop
-import java.nio.file.Path
 import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
+
+private enum class LibraryFilter(val label: String, val kind: MediaKind?) {
+    ALL("All", null), IMAGES("Images", MediaKind.IMAGE), VIDEOS("Videos", MediaKind.VIDEO)
+}
 
 private enum class Page(val label: String) {
     HOME("Home"), DESKTOP("Desktop"), LOCK("Lock Screen"),
@@ -38,18 +38,21 @@ private enum class Page(val label: String) {
 fun main(args: Array<String>) = application {
     val controller = remember { Controller() }
     val visible = remember { mutableStateOf(!args.contains("--minimized")) }
-    val tray = remember {
+    val tray = remember(controller) {
         TraySupport(
             controller,
             showWindow = { visible.value = true },
-            quit = { controller.close(); exitApplication() }
+            quit = { exitApplication() }
         )
     }
     LaunchedEffect(tray.installed) {
         if (!tray.installed) visible.value = true
     }
-    DisposableEffect(tray) {
-        onDispose { tray.close() }
+    DisposableEffect(controller, tray) {
+        onDispose {
+            tray.close()
+            controller.close()
+        }
     }
     Window(
         visible = visible.value,
@@ -58,8 +61,6 @@ fun main(args: Array<String>) = application {
                 visible.value = false
                 tray.announceHidden()
             } else {
-                tray.close()
-                controller.close()
                 exitApplication()
             }
         },
@@ -78,11 +79,7 @@ private fun WallpaperApp(vm: Controller) {
     var page by remember { mutableStateOf(Page.HOME) }
     var selectedPlaylistId by remember { mutableStateOf<Long?>(null) }
     val activePlaylist = state.playlists.firstOrNull { it.id == selectedPlaylistId }
-    LaunchedEffect(state.playlists) {
-        if (selectedPlaylistId == null && state.playlists.isNotEmpty()) {
-            selectedPlaylistId = state.playlists.first().id
-        }
-    }
+        ?: state.playlists.firstOrNull()
     Surface {
         Row(Modifier.fillMaxSize()) {
             Column(
@@ -128,7 +125,7 @@ private fun WallpaperApp(vm: Controller) {
                         Page.HOME -> HomePage(vm) { page = Page.LIBRARY }
                         Page.DESKTOP -> DesktopPage(vm)
                         Page.LOCK -> LockPage(vm)
-                        Page.LIBRARY -> LibraryPage(vm, selectedPlaylistId)
+                        Page.LIBRARY -> LibraryPage(vm, activePlaylist?.id)
                         Page.PLAYLISTS -> PlaylistsPage(vm, activePlaylist,
                             onSelect = { selectedPlaylistId = it })
                         Page.SCHEDULE -> SchedulePage(vm)
@@ -284,12 +281,14 @@ private fun LockPage(vm: Controller) {
 private fun LibraryPage(vm: Controller, playlistId: Long?) {
     val state = vm.state
     var search by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf("all") }
+    var filter by remember { mutableStateOf(LibraryFilter.ALL) }
     var favorites by remember { mutableStateOf(false) }
-    val files = state.media.filter { item ->
-        item.name.contains(search, ignoreCase = true) &&
-            (!favorites || item.favorite) &&
-            (filter == "all" || item.kind.name.equals(filter, ignoreCase = true))
+    val files = remember(state.media, search, favorites, filter) {
+        state.media.filter { item ->
+            item.name.contains(search, ignoreCase = true) &&
+                (!favorites || item.favorite) &&
+                (filter.kind == null || item.kind == filter.kind)
+        }
     }
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically,
@@ -301,9 +300,9 @@ private fun LibraryPage(vm: Controller, playlistId: Long?) {
                 label = { Text("Favorites") })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("all", "image", "video").forEach { kind ->
-                FilterChip(selected = filter == kind, onClick = { filter = kind },
-                    label = { Text(kind.replaceFirstChar { it.uppercase() }) })
+            LibraryFilter.entries.forEach { option ->
+                FilterChip(selected = filter == option, onClick = { filter = option },
+                    label = { Text(option.label) })
             }
             Spacer(Modifier.weight(1f))
             Text(files.size.toString() + " files", modifier = Modifier.align(Alignment.CenterVertically))
@@ -349,9 +348,7 @@ private fun MediaTile(item: Media, vm: Controller, playlistId: Long?) {
                     contentPadding = PaddingValues(horizontal = 10.dp)) {
                     Text(if (item.favorite) "★" else "☆")
                 }
-                OutlinedButton(onClick = {
-                    runCatching { Desktop.getDesktop().open(item.path.toFile()) }
-                }, enabled = present,
+                OutlinedButton(onClick = { vm.openMedia(item) }, enabled = present,
                     contentPadding = PaddingValues(horizontal = 10.dp)) { Text("Open") }
             }
             if (playlistId != null && item.kind == MediaKind.IMAGE) {

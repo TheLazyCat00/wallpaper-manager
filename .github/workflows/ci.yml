@@ -22,13 +22,15 @@ jobs:
             devbox: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       # Nix/Devbox don't support native Windows; the Windows runner already
       # includes JDK 21, Gradle, and WiX. No tools are installed separately.
       - name: Install latest Devbox and project tools
         if: matrix.devbox
-        uses: jetify-com/devbox-install-action@v0.15.0
+        uses: jetify-com/devbox-install-action@8c6a66ed6273138b1915457069de78cb52fe3bd7 # v0.15.0 (latest stable CLI)
 
       - name: Validate GitHub Actions workflows
         if: matrix.os == 'ubuntu-24.04'

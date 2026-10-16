@@ -27,34 +27,42 @@ The Python original also implements important Windows-specific capabilities that
 - Live MP4/WEBM video wallpaper behind Explorer icons (WorkerW + libmpv)
 - WinRT lock-screen wallpaper, picking frames from video, Windows Spotlight restore
 - Start-at-login, single instance, fullscreen/battery/lock-screen auto-pause
-- Drag and drop, multi-select bulk actions, update checking and installer assets
+- Drag and drop, multi-select bulk actions, update checking and installer branding
 - Video thumbnail generation, built-in video preview and detailed video duration metadata
 
 **Video files are imported into the library but cannot yet be set as live wallpapers.** Playlist and schedule playback currently support static images only. Those limitations are visible in the UI and not silently emulated with a foreground player.
 
-## Prerequisites and running
+## Development with Devbox
 
-- **JDK 21**
-- **Gradle 9.3** (or open the project in IntelliJ IDEA with Gradle support)
-- Windows 10/11, macOS, or Linux with a GNOME/KDE-compatible wallpaper command
-
-From the project root:
+The JVM toolchain is managed with [Devbox](https://www.jetify.com/devbox/): **JDK 21**, Gradle and actionlint are declared in `devbox.json`. Install Devbox once, then on Linux/macOS:
 
 ```bash
-gradle run
-gradle test
+devbox run run              # Launch the Compose Desktop app
+devbox run test             # Unit tests
+devbox run lint-workflows   # Validate the GitHub Actions YAML files
+devbox run package-deb      # Linux only
+devbox run package-dmg      # macOS only
 ```
 
-The app does not require a separate Python installation. To package on the appropriate host OS:
+The project can also be opened directly in IntelliJ IDEA. The latest stable Devbox CLI is selected by `jetify-com/devbox-install-action@v0.15.0` in CI. Gradle/JDK packages are resolved through Devbox.
 
-```bash
-gradle packageMsi    # on Windows
-gradle packageDmg    # on macOS
-gradle packageDeb    # on Linux
-```
+**Windows exception:** Devbox/Nix do not currently provide native Windows tooling. For native Windows development, use JDK 21 and Gradle with `gradle run`, `gradle test` and `gradle packageMsi`. CI uses the JDK 21, Gradle and WiX already installed on the `windows-2025` hosted runner rather than downloading them through another installer.
 
+## Releases
 
-Installers are generated with the Compose Desktop/JPackage integration. Release builds should be tested on each host platform; a package task on one OS does not produce installers for the other OSes.
+The [Release workflow](.github/workflows/release.yml) publishes installers for **Windows x64 (.msi)**, **macOS x64 (.dmg)** and **Linux x64 (.deb)**.
+
+To release after merging the port to `main`:
+
+1. Open **Actions → Release → Run workflow**.
+2. Select `main`, enter a new version such as `0.1.0`, and optionally check **prerelease**.
+3. After *all three* platform tests and installers succeed, the workflow creates GitHub release `v0.1.0` and uploads the three installers plus a `SHA256SUMS.txt` verification file.
+
+Alternatively, pushing an existing tag such as `v0.1.0` starts the same release workflow. Only stable `vMAJOR.MINOR.PATCH` tags are accepted. A manual release refuses to reuse an existing tag; an existing published GitHub release is never overwritten.
+
+The version is passed to Gradle through `RELEASE_VERSION` so installer versions agree with the tag (local development defaults to `0.1.0`). Building a release requires the corresponding native operating system; native macOS and Windows installers cannot be cross-compiled from Linux.
+
+The installers are currently **unsigned**. Windows SmartScreen and macOS Gatekeeper may show warnings. Do not advertise the installers as feature-complete yet: video/lock-screen capabilities remain unported.
 
 ## Data and safety
 

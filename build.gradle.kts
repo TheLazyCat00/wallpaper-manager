@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.compose") version "1.12.2"
 }
 group = "dev.wallpapermanager"
-version = "0.1.0"
+version = providers.environmentVariable("RELEASE_VERSION").orElse("0.1.0").get()
 kotlin { jvmToolchain(21) }
 dependencies {
     implementation(compose.desktop.currentOs)
@@ -27,7 +27,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
             )
             packageName = "WallpaperManager"
-            packageVersion = "0.1.0"
+            packageVersion = project.version.toString()
             description = "Wallpaper library, playlists and daily schedules"
             vendor = "Wallpaper Manager"
             modules("java.sql", "java.desktop", "java.prefs")

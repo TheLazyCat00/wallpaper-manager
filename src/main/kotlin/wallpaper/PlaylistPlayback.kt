@@ -11,17 +11,18 @@ internal class PlaylistPlayback(
 ) {
     fun start(id: Long) {
         require(store.playlist(id) != null) { "Playlist not found" }
-        store.setSetting("active_playlist", id.toString())
-        store.setSetting("playlist_index", "-1")
-        store.setSetting("playlist_current", "")
-        store.setSetting("playlist_bag", "")
-        store.setSetting("playlist_due", "0")
+        store.setSettings(
+            "active_playlist" to id.toString(),
+            "playlist_index" to "-1",
+            "playlist_current" to "",
+            "playlist_bag" to "",
+            "playlist_due" to "0"
+        )
         advance()
     }
 
     fun stop() {
-        store.setSetting("active_playlist", "")
-        store.setSetting("playlist_due", "")
+        store.setSettings("active_playlist" to "", "playlist_due" to "")
     }
 
     fun advance() {
@@ -38,12 +39,12 @@ internal class PlaylistPlayback(
             )
             val item = images.first { it.id == selection.id }
             apply(item)
-            store.setSetting("playlist_index", selection.index.toString())
-            store.setSetting("playlist_current", item.id.toString())
-            store.setSetting("playlist_bag", selection.remaining.joinToString(","))
-            store.setSetting("playlist_due", (
-                nowMillis() + playlist.intervalSeconds.coerceAtLeast(60) * 1000L
-            ).toString())
+            store.setSettings(
+                "playlist_index" to selection.index.toString(),
+                "playlist_current" to item.id.toString(),
+                "playlist_bag" to selection.remaining.joinToString(","),
+                "playlist_due" to (nowMillis() + playlist.intervalSeconds.coerceAtLeast(60) * 1000L).toString()
+            )
         } catch (failure: Throwable) {
             // Keep the original error visible even if cleanup itself fails.
             runCatching { stop() }.onFailure { failure.addSuppressed(it) }

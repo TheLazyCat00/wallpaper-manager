@@ -87,12 +87,12 @@ class DesktopWallpaper(private val store: Store) {
     private fun setWindows(file: Path, style: WallpaperStyle) = setWindows(file, style.registry, style.tile)
 
     private fun registryValue(name: String): String? = runCatching {
-        val text = runCommand("reg", "query", "HKCU\\\\Control Panel\\\\Desktop", "/v", name)
-        Regex("""(?m)^\\s*${Regex.escape(name)}\\s+REG_SZ\\s+(\\S+)""").find(text)?.groupValues?.get(1)
+        val text = runCommand("reg", "query", "HKCU\\Control Panel\\Desktop", "/v", name)
+        Regex("""(?m)^\s*${Regex.escape(name)}\s+REG_SZ\s+(\S+)""").find(text)?.groupValues?.get(1)
     }.getOrNull()
 
     private fun setWindows(file: Path, registryStyle: String, tile: String) {
-        val key = "HKCU\\\\Control Panel\\\\Desktop"
+        val key = "HKCU\\Control Panel\\Desktop"
         runCommand("reg", "add", key, "/v", "WallpaperStyle", "/t", "REG_SZ", "/d", registryStyle, "/f")
         runCommand("reg", "add", key, "/v", "TileWallpaper", "/t", "REG_SZ", "/d", tile, "/f")
         val full = file.toAbsolutePath().toString()

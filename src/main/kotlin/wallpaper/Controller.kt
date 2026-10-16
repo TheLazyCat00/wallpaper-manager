@@ -82,6 +82,9 @@ class Controller : AutoCloseable {
                     if (message != null) notice = message
                 } catch (e: Exception) {
                     notice = e.message ?: e.javaClass.simpleName
+                } catch (e: LinkageError) {
+                    // Native/JNA linkage errors do not inherit from Exception.
+                    notice = e.message ?: e.javaClass.simpleName
                 } finally {
                     refresh()
                 }
@@ -90,16 +93,18 @@ class Controller : AutoCloseable {
     }
 
     fun importFiles(paths: List<Path>) = perform {
-        val count = MediaFiles.importPaths(store, paths)
-        "Imported or updated " + count + " media files"
+        val result = MediaFiles.importPaths(store, paths)
+        "Imported or updated ${result.imported} media files" +
+            if (result.failed > 0) " (${result.failed} failed)" else ""
     }
     fun toggleFavorite(item: Media) = perform {
         store.favorite(item.id, !item.favorite)
         null
     }
     fun removeFromLibrary(item: Media) = perform {
+        val deletedRules = store.listRules().count { it.mediaId == item.id }
         store.removeMedia(item.id)
-        "Removed from library (source file kept)"
+        "Removed from library (source file kept; $deletedRules matching daily rules removed)"
     }
     fun setAppearance(isDark: Boolean) = perform {
         store.setSetting("appearance", if (isDark) "dark" else "light")
@@ -119,7 +124,10 @@ class Controller : AutoCloseable {
             "Live video wallpaper is not implemented in this Kotlin port yet"
         }
         if (stopPlaylist) store.setSetting("active_playlist", "")
-        desktop.set(item.path, WallpaperStyle.valueOf(store.setting("style", "FILL")))
+        val selectedStyle = runCatching {
+            WallpaperStyle.valueOf(store.setting("style", WallpaperStyle.FILL.name))
+        }.getOrDefault(WallpaperStyle.FILL)
+        desktop.set(item.path, selectedStyle)
     }
 
     fun applyMedia(item: Media) = perform {

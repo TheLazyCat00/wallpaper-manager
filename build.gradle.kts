@@ -28,6 +28,13 @@ compose.desktop {
             )
             packageName = "WallpaperManager"
             packageVersion = project.version.toString()
+            macOS {
+                // Apple's CFBundleVersion/jpackage rejects versions starting with 0.
+                // Shift the major version for macOS metadata only, maintaining upgrade order.
+                // Published tags and asset filenames retain the unmodified semantic version.
+                packageVersion = (project.version.toString().substringBefore('.').toInt() + 1).toString() +
+                    "." + project.version.toString().substringAfter('.')
+            }
             description = "Wallpaper library, playlists and daily schedules"
             vendor = "Wallpaper Manager"
             modules("java.sql", "java.desktop", "java.prefs")
